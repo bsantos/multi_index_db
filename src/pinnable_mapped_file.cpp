@@ -189,7 +189,11 @@ void pinnable_mapped_file::setup_non_file_mapping() {
       _non_file_mapped_mapping_size = (_non_file_mapped_mapping_size + (r-1u))/r*r;
    };
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-variable"
    const unsigned _1gb = 1u<<30u;
+#pragma GCC diagnostic pop
+
    const unsigned _2mb = 1u<<21u;
 
 #if defined(MAP_HUGETLB) && defined(MAP_HUGE_1GB)
