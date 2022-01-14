@@ -458,10 +458,10 @@ namespace chainbase {
 
       class session {
        public:
-         session(undo_index& idx, bool enabled)
-          : _index(idx),
-            _apply(enabled) {
-            if(enabled) idx.add_session();
+         session(undo_index& idx)
+          : _index(idx)
+         {
+            idx.add_session();
          }
          session(session&& other)
            : _index(other._index),
@@ -494,8 +494,8 @@ namespace chainbase {
 
       int64_t revision() const { return _revision; }
 
-      session start_undo_session( bool enabled ) {
-         return session{*this, enabled};
+      session start_undo_session() {
+         return session { *this };
       }
 
       void set_revision( uint64_t revision ) {

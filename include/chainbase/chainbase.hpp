@@ -103,7 +103,7 @@ namespace chainbase {
          abstract_index( void* i ):_idx_ptr(i){}
          virtual ~abstract_index(){}
          virtual void     set_revision( uint64_t revision ) = 0;
-         virtual std::unique_ptr<abstract_session> start_undo_session( bool enabled ) = 0;
+         virtual std::unique_ptr<abstract_session> start_undo_session() = 0;
 
          virtual int64_t revision()const = 0;
          virtual void    undo()const = 0;
@@ -123,8 +123,8 @@ namespace chainbase {
       public:
          index_impl( BaseIndex& base ):abstract_index( &base ),_base(base){}
 
-         virtual std::unique_ptr<abstract_session> start_undo_session( bool enabled ) override {
-            return std::unique_ptr<abstract_session>(new session_impl<typename BaseIndex::session>( _base.start_undo_session( enabled ) ) );
+         virtual std::unique_ptr<abstract_session> start_undo_session() override {
+            return std::unique_ptr<abstract_session>(new session_impl<typename BaseIndex::session>( _base.start_undo_session() ) );
          }
 
          virtual void     set_revision( uint64_t revision ) override { _base.set_revision( revision ); }
@@ -212,7 +212,7 @@ namespace chainbase {
                std::vector< std::unique_ptr<abstract_session> > _index_sessions;
          };
 
-         session start_undo_session( bool enabled );
+         session start_undo_session();
 
          int64_t revision()const {
              if( _index_list.size() == 0 ) return -1;
@@ -286,7 +286,7 @@ namespace chainbase {
 
                   idx_ptr->set_revision( static_cast<uint64_t>(expected_revision_range.first) );
                   while( idx_ptr->revision() < expected_revision_range.second ) {
-                     idx_ptr->start_undo_session(true).push();
+                     idx_ptr->start_undo_session().push();
                   }
                }
             }

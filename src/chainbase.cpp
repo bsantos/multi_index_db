@@ -46,18 +46,14 @@ namespace chainbase {
       }
    }
 
-   database::session database::start_undo_session( bool enabled )
+   database::session database::start_undo_session()
    {
-      if( enabled ) {
-         std::vector< std::unique_ptr<abstract_session> > _sub_sessions;
-         _sub_sessions.reserve( _index_list.size() );
-         for( auto& item : _index_list ) {
-            _sub_sessions.push_back( item->start_undo_session( enabled ) );
-         }
-         return session( std::move( _sub_sessions ) );
-      } else {
-         return session();
+      std::vector<std::unique_ptr<abstract_session>> _sub_sessions;
+      _sub_sessions.reserve(_index_list.size());
+      for (auto& item : _index_list) {
+         _sub_sessions.push_back(item->start_undo_session());
       }
+      return session(std::move(_sub_sessions));
    }
 
-}  // namespace chainbase
+} // namespace chainbase
