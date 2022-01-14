@@ -16,9 +16,6 @@
 #include <stdexcept>
 #include <filesystem>
 
-#include <chainbase/pinnable_mapped_file.hpp>
-#include <chainbase/shared_cow_string.hpp>
-
 namespace chainbase {
 
    namespace bip = boost::interprocess;
@@ -29,8 +26,6 @@ namespace chainbase {
 
    template<typename T>
    using node_allocator = chainbase_node_allocator<T, pinnable_mapped_file::segment_manager>;
-
-   using shared_string = shared_cow_string;
 
    /**
     *  Object ID type that includes the type of the object it references
