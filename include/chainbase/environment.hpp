@@ -62,6 +62,7 @@ struct environment  {
    bool operator!=(const environment& other) {
       return !(*this == other);
    }
+   std::string str() const;
 } __attribute__ ((packed));
 
 struct db_header  {

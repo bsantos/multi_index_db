@@ -1,15 +1,15 @@
 #pragma once
 
-#include <system_error>
 #include <boost/interprocess/managed_mapped_file.hpp>
 #include <boost/interprocess/sync/file_lock.hpp>
-#include <boost/filesystem.hpp>
-#include <boost/asio/io_service.hpp>
+
+#include <filesystem>
+#include <system_error>
 
 namespace chainbase {
 
 namespace bip = boost::interprocess;
-namespace bfs = boost::filesystem;
+namespace fs = std::filesystem;
 
 enum db_error_code {
    ok = 0,
@@ -18,11 +18,8 @@ enum db_error_code {
    incorrect_db_version,
    not_found,
    bad_size,
-   unsupported_win32_mode,
    bad_header,
    no_access,
-   aborted,
-   no_mlock
 };
 
 const std::error_category& chainbase_error_category();
@@ -41,13 +38,7 @@ class pinnable_mapped_file {
    public:
       typedef typename bip::managed_mapped_file::segment_manager segment_manager;
 
-      enum map_mode {
-         mapped,
-         heap,
-         locked
-      };
-
-      pinnable_mapped_file(const bfs::path& dir, bool writable, uint64_t shared_file_size, bool allow_dirty, map_mode mode);
+      pinnable_mapped_file(const fs::path& dir, bool writable, uint64_t shared_file_size, bool allow_dirty);
       pinnable_mapped_file(pinnable_mapped_file&& o);
       pinnable_mapped_file& operator=(pinnable_mapped_file&&);
       pinnable_mapped_file(const pinnable_mapped_file&) = delete;
@@ -58,20 +49,14 @@ class pinnable_mapped_file {
 
    private:
       void                                          set_mapped_file_db_dirty(bool);
-      void                                          load_database_file(boost::asio::io_service& sig_ios);
-      void                                          save_database_file();
-      bool                                          all_zeros(char* data, size_t sz);
-      void                                          setup_non_file_mapping();
 
       bip::file_lock                                _mapped_file_lock;
-      bfs::path                                     _data_file_path;
+      fs::path                                      _data_file_path;
       std::string                                   _database_name;
       bool                                          _writable;
 
       bip::file_mapping                             _file_mapping;
       bip::mapped_region                            _file_mapped_region;
-      void*                                         _non_file_mapped_mapping = nullptr;
-      size_t                                        _non_file_mapped_mapping_size = 0;
 
 #ifdef _WIN32
       bip::permissions                              _db_permissions;
@@ -83,8 +68,5 @@ class pinnable_mapped_file {
 
       constexpr static unsigned                     _db_size_multiple_requirement = 1024*1024; //1MB
 };
-
-std::istream& operator>>(std::istream& in, pinnable_mapped_file::map_mode& runtime);
-std::ostream& operator<<(std::ostream& osm, pinnable_mapped_file::map_mode m);
 
 }

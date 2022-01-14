@@ -1,11 +1,11 @@
 #pragma once
 
-#include <boost/interprocess/managed_mapped_file.hpp>
 #include <boost/interprocess/containers/map.hpp>
 #include <boost/interprocess/containers/set.hpp>
 #include <boost/interprocess/containers/flat_map.hpp>
 #include <boost/interprocess/containers/deque.hpp>
 #include <boost/interprocess/containers/string.hpp>
+
 #include <boost/interprocess/allocators/allocator.hpp>
 #include <boost/interprocess/sync/interprocess_sharable_mutex.hpp>
 #include <boost/interprocess/sync/sharable_lock.hpp>
@@ -15,7 +15,6 @@
 
 #include <boost/chrono.hpp>
 #include <boost/config.hpp>
-#include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/throw_exception.hpp>
 
@@ -27,6 +26,7 @@
 #include <typeindex>
 #include <typeinfo>
 #include <set>
+#include <filesystem>
 
 #include <chainbase/pinnable_mapped_file.hpp>
 #include <chainbase/shared_cow_string.hpp>
@@ -48,9 +48,9 @@
 namespace chainbase {
 
    namespace bip = boost::interprocess;
-   namespace bfs = boost::filesystem;
    using std::unique_ptr;
    using std::vector;
+   namespace fs = std::filesystem;
 
    template<typename T>
    using allocator = bip::allocator<T, pinnable_mapped_file::segment_manager>;
@@ -259,8 +259,7 @@ namespace chainbase {
 
          using database_index_row_count_multiset = std::multiset<std::pair<unsigned, std::string>>;
 
-         database(const bfs::path& dir, open_flags write = read_only, uint64_t shared_file_size = 0, bool allow_dirty = false,
-                  pinnable_mapped_file::map_mode = pinnable_mapped_file::map_mode::mapped);
+         database(const fs::path& dir, open_flags write = read_only, uint64_t shared_file_size = 0, bool allow_dirty = false);
          ~database();
          database(database&&) = default;
          database& operator=(database&&) = default;

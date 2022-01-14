@@ -1,17 +1,9 @@
 #include <chainbase/chainbase.hpp>
-#include <boost/array.hpp>
-
-#include <iostream>
-
-#ifndef _WIN32
-#include <sys/mman.h>
-#endif
 
 namespace chainbase {
 
-   database::database(const bfs::path& dir, open_flags flags, uint64_t shared_file_size, bool allow_dirty,
-                      pinnable_mapped_file::map_mode db_map_mode) :
-      _db_file(dir, flags & database::read_write, shared_file_size, allow_dirty, db_map_mode),
+   database::database(const fs::path& dir, open_flags flags, uint64_t shared_file_size, bool allow_dirty) :
+      _db_file(dir, flags & database::read_write, shared_file_size, allow_dirty),
       _read_only(flags == database::read_only)
    {
    }
