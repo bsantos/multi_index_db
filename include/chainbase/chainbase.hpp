@@ -1,44 +1,27 @@
 #pragma once
 
-#include <boost/interprocess/containers/map.hpp>
-#include <boost/interprocess/containers/set.hpp>
-#include <boost/interprocess/containers/flat_map.hpp>
-#include <boost/interprocess/containers/deque.hpp>
-#include <boost/interprocess/containers/string.hpp>
-
-#include <boost/interprocess/allocators/allocator.hpp>
-#include <boost/interprocess/sync/interprocess_sharable_mutex.hpp>
-#include <boost/interprocess/sync/sharable_lock.hpp>
-#include <boost/core/demangle.hpp>
-
 #include <boost/multi_index_container.hpp>
+#include <chainbase/chainbase_node_allocator.hpp>
+#include <chainbase/undo_index.hpp>
 
-#include <boost/chrono.hpp>
 #include <boost/config.hpp>
-#include <boost/lexical_cast.hpp>
+#include <boost/core/demangle.hpp>
 #include <boost/throw_exception.hpp>
+#include <boost/multi_index_container.hpp>
+#include <boost/interprocess/allocators/allocator.hpp>
 
-#include <array>
-#include <atomic>
-#include <fstream>
-#include <iostream>
-#include <stdexcept>
-#include <typeindex>
-#include <typeinfo>
 #include <set>
+#include <vector>
+#include <typeinfo>
+#include <stdexcept>
 #include <filesystem>
 
 #include <chainbase/pinnable_mapped_file.hpp>
 #include <chainbase/shared_cow_string.hpp>
-#include <chainbase/chainbase_node_allocator.hpp>
-#include <chainbase/undo_index.hpp>
-
 
 namespace chainbase {
 
    namespace bip = boost::interprocess;
-   using std::unique_ptr;
-   using std::vector;
    namespace fs = std::filesystem;
 
    template<typename T>
@@ -148,7 +131,7 @@ namespace chainbase {
          abstract_index( void* i ):_idx_ptr(i){}
          virtual ~abstract_index(){}
          virtual void     set_revision( uint64_t revision ) = 0;
-         virtual unique_ptr<abstract_session> start_undo_session( bool enabled ) = 0;
+         virtual std::unique_ptr<abstract_session> start_undo_session( bool enabled ) = 0;
 
          virtual int64_t revision()const = 0;
          virtual void    undo()const = 0;
@@ -172,8 +155,8 @@ namespace chainbase {
       public:
          index_impl( BaseIndex& base ):abstract_index( &base ),_base(base){}
 
-         virtual unique_ptr<abstract_session> start_undo_session( bool enabled ) override {
-            return unique_ptr<abstract_session>(new session_impl<typename BaseIndex::session>( _base.start_undo_session( enabled ) ) );
+         virtual std::unique_ptr<abstract_session> start_undo_session( bool enabled ) override {
+            return std::unique_ptr<abstract_session>(new session_impl<typename BaseIndex::session>( _base.start_undo_session( enabled ) ) );
          }
 
          virtual void     set_revision( uint64_t revision ) override { _base.set_revision( revision ); }
@@ -199,7 +182,6 @@ namespace chainbase {
          index( IndexType& i ):index_impl<IndexType>( i ){}
    };
 
-
    /**
     *  This class
     */
@@ -224,7 +206,7 @@ namespace chainbase {
          struct session {
             public:
                session( session&& s ):_index_sessions( std::move(s._index_sessions) ){}
-               session( vector<std::unique_ptr<abstract_session>>&& s ):_index_sessions( std::move(s) )
+               session( std::vector<std::unique_ptr<abstract_session>>&& s ):_index_sessions( std::move(s) )
                {
                }
 
@@ -254,7 +236,7 @@ namespace chainbase {
                friend class database;
                session(){}
 
-               vector< std::unique_ptr<abstract_session> > _index_sessions;
+               std::vector< std::unique_ptr<abstract_session> > _index_sessions;
          };
 
          session start_undo_session( bool enabled );
@@ -466,12 +448,12 @@ namespace chainbase {
          /**
           * This is a sparse list of known indices kept to accelerate creation of undo sessions
           */
-         vector<abstract_index*>                                     _index_list;
+         std::vector<abstract_index*>                                _index_list;
 
          /**
           * This is a full map (size 2^16) of all possible index designed for constant time lookup
           */
-         vector<unique_ptr<abstract_index>>                          _index_map;
+         std::vector<std::unique_ptr<abstract_index>>                _index_map;
    };
 
    template<typename Object, typename... Args>
