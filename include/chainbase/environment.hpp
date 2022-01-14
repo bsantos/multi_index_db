@@ -1,36 +1,37 @@
 #pragma once
-#include <chainbase/pinnable_mapped_file.hpp>
+
 #include <iomanip>
+#include <cstdint>
+#include <cstring>
 
 namespace chainbase {
 
-constexpr size_t header_size = 1024;
-constexpr uint64_t header_id = 0x3242444f49534f45ULL; //"EOSIODB2" little endian
+constexpr size_t header_size = 384;
+constexpr uint64_t header_id = 0x4277554c54494442ULL; // "BMULTIDB"
 
-struct environment  {
+struct environment {
    environment() {
-      strncpy(compiler, __VERSION__, sizeof(compiler)-1);
+      std::strncpy(compiler, __VERSION__, sizeof(compiler)-1);
    }
 
-   enum os_t : unsigned char {
+   enum os_t : uint8_t {
       OS_LINUX,
       OS_MACOS,
       OS_WINDOWS,
-      OS_OTHER
-   };
-   enum arch_t : unsigned char {
-      ARCH_X86_64,
-      ARCH_ARM,
-      ARCH_RISCV,
-      ARCH_OTHER
    };
 
-   bool debug =
+   enum arch_t : uint8_t {
+      ARCH_X86_64,
+      ARCH_ARM,
+   };
+
+   uint8_t debug =
 #ifndef NDEBUG
       true;
 #else
       false;
 #endif
+
    os_t os =
 #if defined(__linux__)
       OS_LINUX;
@@ -39,35 +40,31 @@ struct environment  {
 #elif defined(_WIN32)
       OS_WINDOWS;
 #else
-      OS_OTHER;
+#  error "unknown os"
 #endif
+
    arch_t arch =
 #if defined(__x86_64__)
       ARCH_X86_64;
 #elif defined(__aarch64__)
-      ARCH_ARM;
-#elif defined(__riscv__)
-      ARCH_RISCV;
+      ARCH_ARM64;
 #else
-      ARCH_OTHER;
+#  error "unknown architecture"
 #endif
 
-   unsigned boost_version = BOOST_VERSION;
-   uint8_t reserved[512] = {};
+   uint32_t boost_version = BOOST_VERSION;
    char compiler[256] = {};
 
-   bool operator==(const environment& other) {
-      return !memcmp(this, &other, sizeof(environment));
-   } 
-   bool operator!=(const environment& other) {
-      return !(*this == other);
-   }
+   bool operator==(environment const& other) const { return !std::memcmp(this, &other, sizeof(environment)); }
+   bool operator!=(environment const& other) const { return !(*this == other); }
    std::string str() const;
+
 } __attribute__ ((packed));
 
 struct db_header  {
    uint64_t id = header_id;
-   bool dirty = false;
+   uint32_t size = header_size;
+   uint8_t dirty = false;
    environment dbenviron;
 } __attribute__ ((packed));
 

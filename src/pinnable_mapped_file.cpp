@@ -62,7 +62,7 @@ pinnable_mapped_file::pinnable_mapped_file(const fs::path& dir, bool writable, u
          BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::bad_header)));
 
       db_header* dbheader = reinterpret_cast<db_header*>(header);
-      if(dbheader->id != header_id) {
+      if(dbheader->id != header_id || dbheader->size != header_size) {
          std::string what_str("\"" + _database_name + "\" database format not compatible with this version of chainbase");
          BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::incorrect_db_version), what_str));
       }
@@ -168,18 +168,16 @@ static std::string_view print_os(environment::os_t os) {
       case environment::OS_LINUX: return "Linux";
       case environment::OS_MACOS: return "macOS";
       case environment::OS_WINDOWS: return "Windows";
-      case environment::OS_OTHER: return "Unknown";
    }
-   return "error";
+   return {};
 }
+
 static std::string_view print_arch(environment::arch_t arch) {
    switch(arch) {
       case environment::ARCH_X86_64: return "x86_64";
       case environment::ARCH_ARM: return "ARM";
-      case environment::ARCH_RISCV: return "RISC-v";
-      case environment::ARCH_OTHER: return "Unknown";
    }
-   return "error";
+   return {};
 }
 
 std::string chainbase::environment::str() const
