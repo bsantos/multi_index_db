@@ -160,8 +160,20 @@ namespace chainbase {
          ~database();
          database(database&&) = default;
          database& operator=(database&&) = default;
+
+         void dirty()
+         {
+            _db_file.dirty();
+            _read_only = false;
+         }
+
+         void flush()
+         {
+            _db_file.flush();
+            _read_only = true;
+         }
+
          bool is_read_only() const { return _read_only; }
-         void flush();
 
 
          struct session {

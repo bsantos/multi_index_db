@@ -112,7 +112,7 @@ pinnable_mapped_file::pinnable_mapped_file(const fs::path& dir, bool writable, u
       if(!_mapped_file_lock.try_lock())
          BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::no_access)));
 
-      set_mapped_file_db_dirty(true);
+      dirty();
    }
 
    _segment_manager = file_mapped_segment_manager;
@@ -142,13 +142,25 @@ pinnable_mapped_file& pinnable_mapped_file::operator=(pinnable_mapped_file&& o) 
 
 pinnable_mapped_file::~pinnable_mapped_file() {
    if(_writable) {
-      set_mapped_file_db_dirty(false);
+      flush();
    }
 }
 
-void pinnable_mapped_file::set_mapped_file_db_dirty(bool dirty) {
-   *((char*)_file_mapped_region.get_address()+header_dirty_bit_offset) = dirty;
+void pinnable_mapped_file::flush()
+{
+   *((char*)_file_mapped_region.get_address()+header_dirty_bit_offset) = false;
    _file_mapped_region.flush(0, 0, false);
+}
+
+void pinnable_mapped_file::dirty()
+{
+   *((char*)_file_mapped_region.get_address()+header_dirty_bit_offset) = true;
+   _file_mapped_region.flush(0, 0, false);
+}
+
+bool pinnable_mapped_file::dirty() const
+{
+   return *((char*)_file_mapped_region.get_address()+header_dirty_bit_offset);
 }
 
 static std::string_view print_os(environment::os_t os) {

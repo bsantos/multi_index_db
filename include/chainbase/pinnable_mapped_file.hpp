@@ -50,11 +50,13 @@ class pinnable_mapped_file {
       pinnable_mapped_file& operator=(const pinnable_mapped_file&) = delete;
       ~pinnable_mapped_file();
 
+      void flush();
+      void dirty();
+      bool dirty() const;
+
       segment_manager* get_segment_manager() const { return _segment_manager;}
 
    private:
-      void                                          set_mapped_file_db_dirty(bool);
-
       bip::file_lock                                _mapped_file_lock;
       fs::path                                      _data_file_path;
       std::string                                   _database_name;
