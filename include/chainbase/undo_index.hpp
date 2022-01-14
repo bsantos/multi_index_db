@@ -11,11 +11,9 @@
 #include <boost/mp11/algorithm.hpp>
 #include <boost/range/iterator_range.hpp>
 #include <boost/interprocess/interprocess_fwd.hpp>
-#include <boost/core/demangle.hpp>
 
 #include <cassert>
 #include <memory>
-#include <sstream>
 #include <type_traits>
 
 namespace chainbase {
@@ -456,17 +454,6 @@ namespace chainbase {
          } else {
             return nullptr;
          }
-      }
-
-      template<typename CompatibleKey>
-      const value_type& get( CompatibleKey&& key )const {
-         auto ptr = find( static_cast<CompatibleKey&&>(key) );
-         if( !ptr ) {
-            std::stringstream ss;
-            ss << "key not found (" << boost::core::demangle( typeid( key ).name() ) << "): " << key;
-            BOOST_THROW_EXCEPTION( std::out_of_range( ss.str().c_str() ) );
-         }
-         return *ptr;
       }
 
       class session {

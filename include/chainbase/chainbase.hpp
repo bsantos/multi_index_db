@@ -10,7 +10,6 @@
 #include <boost/multi_index_container.hpp>
 #include <boost/interprocess/allocators/allocator.hpp>
 
-#include <set>
 #include <vector>
 #include <typeinfo>
 #include <stdexcept>
@@ -43,13 +42,13 @@ namespace chainbase {
          friend bool operator >= ( const oid& a, const oid& b ) { return a._id >= b._id; }
          friend bool operator == ( const oid& a, const oid& b ) { return a._id == b._id; }
          friend bool operator != ( const oid& a, const oid& b ) { return a._id != b._id; }
-         friend std::ostream& operator<<(std::ostream& s, const oid& id) {
-            s << boost::core::demangle(typeid(oid<T>).name()) << '(' << id._id << ')'; return s;
-         }
 
          int64_t _id = 0;
    };
 
+   /**
+    *  Object base class that must be inherited when implementing database objects
+    */
    template<uint16_t TypeNumber, typename Derived>
    struct object
    {
@@ -57,7 +56,8 @@ namespace chainbase {
       static const uint16_t type_id = TypeNumber;
    };
 
-   /** this class is ment to be specified to enable lookup of index type by object type using
+   /**
+    * This class is ment to be specified to enable lookup of index type by object type using
     * the SET_INDEX_TYPE macro.
     **/
    template<typename T>
@@ -110,9 +110,6 @@ namespace chainbase {
          virtual void    squash()const = 0;
          virtual void    commit( int64_t revision )const = 0;
          virtual void    undo_all()const = 0;
-         virtual uint32_t type_id()const  = 0;
-         virtual uint64_t row_count()const = 0;
-         virtual const std::string& type_name()const = 0;
          virtual std::pair<int64_t, int64_t> undo_stack_revision_range()const = 0;
 
          void* get()const { return _idx_ptr; }
@@ -136,14 +133,10 @@ namespace chainbase {
          virtual void     squash()const  override { _base.squash(); }
          virtual void     commit( int64_t revision )const  override { _base.commit(revision); }
          virtual void     undo_all() const override {_base.undo_all(); }
-         virtual uint32_t type_id()const override { return BaseIndex::value_type::type_id; }
-         virtual uint64_t row_count()const override { return _base.indices().size(); }
-         virtual const std::string& type_name() const override { return BaseIndex_name; }
          virtual std::pair<int64_t, int64_t> undo_stack_revision_range()const override { return _base.undo_stack_revision_range(); }
 
       private:
          BaseIndex& _base;
-         std::string BaseIndex_name = boost::core::demangle( typeid( typename BaseIndex::value_type ).name() );
    };
 
    template<typename IndexType>
@@ -162,8 +155,6 @@ namespace chainbase {
             read_only     = 0,
             read_write    = 1
          };
-
-         using database_index_row_count_multiset = std::multiset<std::pair<unsigned, std::string>>;
 
          database(const fs::path& dir, open_flags write = read_only, uint64_t shared_file_size = 0, bool allow_dirty = false);
          ~database();
@@ -356,30 +347,6 @@ namespace chainbase {
              return get_index< index_type >().find( key );
          }
 
-         template< typename ObjectType, typename IndexedByType, typename CompatibleKey >
-         const ObjectType& get( CompatibleKey&& key )const
-         {
-             auto obj = find< ObjectType, IndexedByType >( std::forward< CompatibleKey >( key ) );
-             if( !obj ) {
-                std::stringstream ss;
-                ss << "unknown key (" << boost::core::demangle( typeid( key ).name() ) << "): " << key;
-                BOOST_THROW_EXCEPTION( std::out_of_range( ss.str().c_str() ) );
-             }
-             return *obj;
-         }
-
-         template< typename ObjectType >
-         const ObjectType& get( const oid< ObjectType >& key = oid< ObjectType >() )const
-         {
-             auto obj = find< ObjectType >( key );
-             if( !obj ) {
-                std::stringstream ss;
-                ss << "unknown key (" << boost::core::demangle( typeid( key ).name() ) << "): " << key._id;
-                BOOST_THROW_EXCEPTION( std::out_of_range( ss.str().c_str() ) );
-             }
-             return *obj;
-         }
-
          template<typename ObjectType, typename Modifier>
          void modify( const ObjectType& obj, Modifier&& m )
          {
@@ -399,16 +366,6 @@ namespace chainbase {
          {
              typedef typename get_index_type<ObjectType>::type index_type;
              return get_mutable_index<index_type>().emplace( std::forward<Constructor>(con) );
-         }
-
-         database_index_row_count_multiset row_count_per_index()const {
-            database_index_row_count_multiset ret;
-            for(const auto& ai_ptr : _index_map) {
-               if(!ai_ptr)
-                  continue;
-               ret.emplace(make_pair(ai_ptr->row_count(), ai_ptr->type_name()));
-            }
-            return ret;
          }
 
       private:
