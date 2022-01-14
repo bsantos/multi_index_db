@@ -37,26 +37,26 @@ const std::error_category& chainbase_error_category() {
    return the_category;
 }
 
-pinnable_mapped_file::pinnable_mapped_file(const fs::path& dir, bool writable, uint64_t shared_file_size, bool allow_dirty) :
-   _data_file_path(fs::absolute(dir/"shared_memory.bin")),
-   _database_name(dir.filename().string()),
-   _writable(writable)
+pinnable_mapped_file::pinnable_mapped_file(const fs::path& fpath, bool writable, uint64_t db_file_size, bool allow_dirty)
+   : _database_name(fpath.filename().string())
+   , _writable(writable)
 {
-   if(shared_file_size % _db_size_multiple_requirement) {
-      std::string what_str("database must be multiple of " + std::to_string(_db_size_multiple_requirement) + " bytes");
+   if(db_file_size % db_size_multiple_requirement) {
+      std::string what_str("database must be multiple of " + std::to_string(db_size_multiple_requirement) + " bytes");
       BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::bad_size), what_str));
    }
 
-   if(!_writable && !fs::exists(_data_file_path)){
-      std::string what_str("database file not found at " + _data_file_path.string());
+   if(!_writable && !fs::exists(fpath)){
+      std::string what_str("database file not found at " + fpath.string());
       BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::not_found), what_str));
    }
 
-   fs::create_directories(dir);
+   if (auto dir = fpath.parent_path(); !dir.empty())
+      fs::create_directories(dir);
 
-   if(fs::exists(_data_file_path)) {
+   if(fs::exists(fpath)) {
       char header[header_size];
-      std::ifstream hs(_data_file_path.generic_string(), std::ifstream::binary);
+      std::ifstream hs(fpath.generic_string(), std::ifstream::binary);
       hs.read(header, header_size);
       if(hs.fail())
          BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::bad_header)));
@@ -77,38 +77,38 @@ pinnable_mapped_file::pinnable_mapped_file(const fs::path& dir, bool writable, u
    }
 
    segment_manager* file_mapped_segment_manager = nullptr;
-   if(!fs::exists(_data_file_path)) {
-      std::ofstream ofs(_data_file_path.generic_string(), std::ofstream::trunc);
+   if(!fs::exists(fpath)) {
+      std::ofstream ofs(fpath.generic_string(), std::ofstream::trunc);
       //win32 impl of fs::resize_file() doesn't like the file being open
       ofs.close();
-      fs::resize_file(_data_file_path, shared_file_size);
-      _file_mapping = bip::file_mapping(_data_file_path.generic_string().c_str(), bip::read_write);
+      fs::resize_file(fpath, db_file_size);
+      _file_mapping = bip::file_mapping(fpath.generic_string().c_str(), bip::read_write);
       _file_mapped_region = bip::mapped_region(_file_mapping, bip::read_write);
-      file_mapped_segment_manager = new ((char*)_file_mapped_region.get_address()+header_size) segment_manager(shared_file_size-header_size);
+      file_mapped_segment_manager = new ((char*)_file_mapped_region.get_address()+header_size) segment_manager(db_file_size-header_size);
       new (_file_mapped_region.get_address()) db_header;
    }
    else if(_writable) {
-         auto existing_file_size = fs::file_size(_data_file_path);
+         auto existing_file_size = fs::file_size(fpath);
          size_t grow = 0;
-         if(shared_file_size > existing_file_size) {
-            grow = shared_file_size - existing_file_size;
-            fs::resize_file(_data_file_path, shared_file_size);
+         if(db_file_size > existing_file_size) {
+            grow = db_file_size - existing_file_size;
+            fs::resize_file(fpath, db_file_size);
          }
 
-         _file_mapping = bip::file_mapping(_data_file_path.generic_string().c_str(), bip::read_write);
+         _file_mapping = bip::file_mapping(fpath.generic_string().c_str(), bip::read_write);
          _file_mapped_region = bip::mapped_region(_file_mapping, bip::read_write);
          file_mapped_segment_manager = reinterpret_cast<segment_manager*>((char*)_file_mapped_region.get_address()+header_size);
          if(grow)
             file_mapped_segment_manager->grow(grow);
    }
    else {
-         _file_mapping = bip::file_mapping(_data_file_path.generic_string().c_str(), bip::read_only);
+         _file_mapping = bip::file_mapping(fpath.generic_string().c_str(), bip::read_only);
          _file_mapped_region = bip::mapped_region(_file_mapping, bip::read_only);
          file_mapped_segment_manager = reinterpret_cast<segment_manager*>((char*)_file_mapped_region.get_address()+header_size);
    }
 
    if(_writable) {
-      _mapped_file_lock = bip::file_lock(_data_file_path.generic_string().c_str());
+      _mapped_file_lock = bip::file_lock(fpath.generic_string().c_str());
       if(!_mapped_file_lock.try_lock())
          BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::no_access)));
 
@@ -120,7 +120,6 @@ pinnable_mapped_file::pinnable_mapped_file(const fs::path& dir, bool writable, u
 
 pinnable_mapped_file::pinnable_mapped_file(pinnable_mapped_file&& o) :
    _mapped_file_lock(std::move(o._mapped_file_lock)),
-   _data_file_path(std::move(o._data_file_path)),
    _database_name(std::move(o._database_name)),
    _file_mapped_region(std::move(o._file_mapped_region))
 {
@@ -131,7 +130,6 @@ pinnable_mapped_file::pinnable_mapped_file(pinnable_mapped_file&& o) :
 
 pinnable_mapped_file& pinnable_mapped_file::operator=(pinnable_mapped_file&& o) {
    _mapped_file_lock = std::move(o._mapped_file_lock);
-   _data_file_path = std::move(o._data_file_path);
    _database_name = std::move(o._database_name);
    _file_mapped_region = std::move(o._file_mapped_region);
    _segment_manager = o._segment_manager;

@@ -41,9 +41,11 @@ public:
 
 class pinnable_mapped_file {
    public:
+      constexpr static unsigned db_size_multiple_requirement = 1024*1024; //1MB
+
       using segment_manager = bip::segment_manager<char, bip::rbtree_best_fit<bip::null_mutex_family>, bip::iset_index>;
 
-      pinnable_mapped_file(const fs::path& dir, bool writable, uint64_t shared_file_size, bool allow_dirty);
+      pinnable_mapped_file(const fs::path& fpath, bool writable, uint64_t db_file_size, bool allow_dirty);
       pinnable_mapped_file(pinnable_mapped_file&& o);
       pinnable_mapped_file& operator=(pinnable_mapped_file&&);
       pinnable_mapped_file(const pinnable_mapped_file&) = delete;
@@ -58,7 +60,6 @@ class pinnable_mapped_file {
 
    private:
       bip::file_lock                                _mapped_file_lock;
-      fs::path                                      _data_file_path;
       std::string                                   _database_name;
       bool                                          _writable;
 
@@ -66,8 +67,6 @@ class pinnable_mapped_file {
       bip::mapped_region                            _file_mapped_region;
 
       segment_manager*                              _segment_manager = nullptr;
-
-      constexpr static unsigned                     _db_size_multiple_requirement = 1024*1024; //1MB
 };
 
 }
