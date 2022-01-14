@@ -5,13 +5,12 @@
 #include <chainbase/undo_index.hpp>
 
 #include <boost/config.hpp>
-#include <boost/core/demangle.hpp>
 #include <boost/throw_exception.hpp>
 #include <boost/multi_index_container.hpp>
 #include <boost/interprocess/allocators/allocator.hpp>
 
 #include <vector>
-#include <typeinfo>
+#include <string>
 #include <stdexcept>
 #include <filesystem>
 
@@ -27,13 +26,30 @@ namespace chainbase {
    using node_allocator = chainbase_node_allocator<T, pinnable_mapped_file::segment_manager>;
 
    /**
+    *  ID type that uniquely identifies an object in the database
+    */
+   template<size_t N>
+   struct oid {
+      constexpr oid(const char (&str)[N], uint16_t index)
+         : index { index }
+      {
+         std::copy_n(str, N, c_str);
+      }
+
+      std::string str() const { return c_str; }
+
+      uint16_t index;
+      char c_str[N];
+   };
+
+   /**
     *  Object base class that must be inherited when implementing database objects
     */
-   template<uint16_t TypeNumber, typename Derived>
+   template<oid TypeId, class Derived>
    struct object
    {
       using id_type = uint64_t;
-      static const uint16_t type_id = TypeNumber;
+      static constexpr oid type_id = TypeId;
    };
 
    /**
@@ -221,28 +237,26 @@ namespace chainbase {
 
          template<typename MultiIndexType>
          void add_index() {
-            const uint16_t type_id = generic_index<MultiIndexType>::value_type::type_id;
-            typedef generic_index<MultiIndexType>          index_type;
-            typedef typename index_type::allocator_type    index_alloc;
+            constexpr auto type_id = generic_index<MultiIndexType>::value_type::type_id;
+            using index_type = generic_index<MultiIndexType>;
+            using index_alloc = typename index_type::allocator_type;
 
-            std::string type_name = boost::core::demangle( typeid( typename index_type::value_type ).name() );
-
-            if( !( _index_map.size() <= type_id || _index_map[ type_id ] == nullptr ) ) {
-               BOOST_THROW_EXCEPTION( std::logic_error( type_name + "::type_id is already in use" ) );
+            if( !( _index_map.size() <= type_id.index || _index_map[ type_id.index ] == nullptr ) ) {
+               BOOST_THROW_EXCEPTION( std::logic_error( type_id.str() + " is already in use" ) );
             }
 
             index_type* idx_ptr = nullptr;
             if( _read_only )
-               idx_ptr = _db_file.get_segment_manager()->find_no_lock< index_type >( type_name.c_str() ).first;
+               idx_ptr = _db_file.get_segment_manager()->find_no_lock< index_type >( type_id.c_str ).first;
             else
-               idx_ptr = _db_file.get_segment_manager()->find< index_type >( type_name.c_str() ).first;
+               idx_ptr = _db_file.get_segment_manager()->find< index_type >( type_id.c_str ).first;
             bool first_time_adding = false;
             if( !idx_ptr ) {
                if( _read_only ) {
-                  BOOST_THROW_EXCEPTION( std::runtime_error( "unable to find index for " + type_name + " in read only database" ) );
+                  BOOST_THROW_EXCEPTION( std::runtime_error( "unable to find index for " + type_id.str() + " in read only database" ) );
                }
                first_time_adding = true;
-               idx_ptr = _db_file.get_segment_manager()->construct< index_type >( type_name.c_str() )( index_alloc( _db_file.get_segment_manager() ) );
+               idx_ptr = _db_file.get_segment_manager()->construct< index_type >( type_id.c_str )( index_alloc( _db_file.get_segment_manager() ) );
              }
 
             idx_ptr->validate();
@@ -257,7 +271,7 @@ namespace chainbase {
 
                   if( !first_time_adding ) {
                      BOOST_THROW_EXCEPTION( std::logic_error(
-                        "existing index for " + type_name + " has an undo stack (revision range [" +
+                        "existing index for " + type_id.str() + " has an undo stack (revision range [" +
                         std::to_string(added_index_revision_range.first) + ", " + std::to_string(added_index_revision_range.second) +
                         "]) that is inconsistent with other indices in the database (revision range [" +
                         std::to_string(expected_revision_range.first) + ", " + std::to_string(expected_revision_range.second) +
@@ -267,7 +281,7 @@ namespace chainbase {
 
                   if( _read_only ) {
                      BOOST_THROW_EXCEPTION( std::logic_error(
-                        "new index for " + type_name +
+                        "new index for " + type_id.str() +
                         " requires an undo stack that is consistent with other indices in the database; cannot fix in read-only mode"
                      ) );
                   }
@@ -279,11 +293,11 @@ namespace chainbase {
                }
             }
 
-            if( type_id >= _index_map.size() )
-               _index_map.resize( type_id + 1 );
+            if( type_id.index >= _index_map.size() )
+               _index_map.resize( type_id.index + 1 );
 
             auto new_index = new index<index_type>( *idx_ptr );
-            _index_map[ type_id ].reset( new_index );
+            _index_map[ type_id.index ].reset( new_index );
             _index_list.push_back( new_index );
          }
 
@@ -305,9 +319,9 @@ namespace chainbase {
          {
             typedef generic_index<MultiIndexType> index_type;
             typedef index_type*                   index_type_ptr;
-            assert( _index_map.size() > index_type::value_type::type_id );
-            assert( _index_map[index_type::value_type::type_id] );
-            return *index_type_ptr( _index_map[index_type::value_type::type_id]->get() );
+            assert( _index_map.size() > index_type::value_type::type_id.index );
+            assert( _index_map[index_type::value_type::type_id.index] );
+            return *index_type_ptr( _index_map[index_type::value_type::type_id.index]->get() );
          }
 
          template<typename MultiIndexType, typename ByIndex>
@@ -315,9 +329,9 @@ namespace chainbase {
          {
             typedef generic_index<MultiIndexType> index_type;
             typedef index_type*                   index_type_ptr;
-            assert( _index_map.size() > index_type::value_type::type_id );
-            assert( _index_map[index_type::value_type::type_id] );
-            return index_type_ptr( _index_map[index_type::value_type::type_id]->get() )->indices().template get<ByIndex>();
+            assert( _index_map.size() > index_type::value_type::type_id.index );
+            assert( _index_map[index_type::value_type::type_id.index] );
+            return index_type_ptr( _index_map[index_type::value_type::type_id.index]->get() )->indices().template get<ByIndex>();
          }
 
          template<typename MultiIndexType>
@@ -325,9 +339,9 @@ namespace chainbase {
          {
             typedef generic_index<MultiIndexType> index_type;
             typedef index_type*                   index_type_ptr;
-            assert( _index_map.size() > index_type::value_type::type_id );
-            assert( _index_map[index_type::value_type::type_id] );
-            return *index_type_ptr( _index_map[index_type::value_type::type_id]->get() );
+            assert( _index_map.size() > index_type::value_type::type_id.index );
+            assert( _index_map[index_type::value_type::type_id.index] );
+            return *index_type_ptr( _index_map[index_type::value_type::type_id.index]->get() );
          }
 
          template< typename ObjectType, typename IndexedByType, typename CompatibleKey >
