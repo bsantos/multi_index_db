@@ -1,6 +1,11 @@
 #pragma once
 
-#include <boost/interprocess/managed_mapped_file.hpp>
+#include <boost/interprocess/sync/mutex_family.hpp>
+#include <boost/interprocess/indexes/iset_index.hpp>
+#include <boost/interprocess/mem_algo/rbtree_best_fit.hpp>
+#include <boost/interprocess/segment_manager.hpp>
+#include <boost/interprocess/file_mapping.hpp>
+#include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/sync/file_lock.hpp>
 
 #include <filesystem>
@@ -36,7 +41,7 @@ public:
 
 class pinnable_mapped_file {
    public:
-      typedef typename bip::managed_mapped_file::segment_manager segment_manager;
+      using segment_manager = bip::segment_manager<char, bip::rbtree_best_fit<bip::null_mutex_family>, bip::iset_index>;
 
       pinnable_mapped_file(const fs::path& dir, bool writable, uint64_t shared_file_size, bool allow_dirty);
       pinnable_mapped_file(pinnable_mapped_file&& o);

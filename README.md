@@ -9,8 +9,8 @@
 
 ## Features
 
-  - Supports multiple objects (tables) with multiple indicies (based upon boost::multi_index_container)
-  - State is persistant and sharable among multiple processes
+  - Supports multiple objects (tables) with multiple indicies based upon boost::multi_index_container
+  - State is persistant
   - Nested Transactional Writes with ability to undo changes
 
 ## Dependencies
@@ -116,9 +116,6 @@ int main( int argc, char** argv ) {
 By default ChainBase provides no synchronization and has the same concurrency restrictions as any
 boost::multi_index_container.  This means that two or more threads may read the database at the
 same time, but all writes must be protected by a mutex.  
-
-Multiple processes may open the same database if care is taken to use interpocess locking on the
-database.  
 
 ## Persistance
 
