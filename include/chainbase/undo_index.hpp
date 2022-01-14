@@ -469,12 +469,6 @@ namespace chainbase {
          return *ptr;
       }
 
-      void remove_object( int64_t id ) {
-         const value_type* val = find( typename value_type::id_type(id) );
-         if( !val ) BOOST_THROW_EXCEPTION( std::out_of_range( boost::lexical_cast<std::string>(id) ) );
-         remove( *val );
-      }
-
       class session {
        public:
          session(undo_index& idx, bool enabled)

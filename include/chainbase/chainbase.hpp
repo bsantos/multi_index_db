@@ -73,29 +73,6 @@ namespace chainbase {
    template<typename Constructor, typename Allocator> \
    OBJECT_TYPE( Constructor&& c, Allocator&&  ) { c(*this); }
 
-   /**
-    * The code we want to implement is this:
-    *
-    * ++target; try { ... } finally { --target }
-    *
-    * In C++ the only way to implement finally is to create a class
-    * with a destructor, so that's what we do here.
-    */
-   class int_incrementer
-   {
-      public:
-         int_incrementer( int32_t& target ) : _target(target)
-         { ++_target; }
-         ~int_incrementer()
-         { --_target; }
-
-         int32_t get()const
-         { return _target; }
-
-      private:
-         int32_t& _target;
-   };
-
    template<typename MultiIndexType>
    using generic_index = multi_index_to_undo_index<MultiIndexType>;
 
@@ -138,9 +115,8 @@ namespace chainbase {
          virtual const std::string& type_name()const = 0;
          virtual std::pair<int64_t, int64_t> undo_stack_revision_range()const = 0;
 
-         virtual void remove_object( int64_t id ) = 0;
-
          void* get()const { return _idx_ptr; }
+
       private:
          void* _idx_ptr;
    };
@@ -165,7 +141,6 @@ namespace chainbase {
          virtual const std::string& type_name() const override { return BaseIndex_name; }
          virtual std::pair<int64_t, int64_t> undo_stack_revision_range()const override { return _base.undo_stack_revision_range(); }
 
-         virtual void     remove_object( int64_t id ) override { return _base.remove_object( id ); }
       private:
          BaseIndex& _base;
          std::string BaseIndex_name = boost::core::demangle( typeid( typename BaseIndex::value_type ).name() );

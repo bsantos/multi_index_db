@@ -63,12 +63,6 @@ class pinnable_mapped_file {
       bip::file_mapping                             _file_mapping;
       bip::mapped_region                            _file_mapped_region;
 
-#ifdef _WIN32
-      bip::permissions                              _db_permissions;
-#else
-      bip::permissions                              _db_permissions{S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH};
-#endif
-
       segment_manager*                              _segment_manager = nullptr;
 
       constexpr static unsigned                     _db_size_multiple_requirement = 1024*1024; //1MB
