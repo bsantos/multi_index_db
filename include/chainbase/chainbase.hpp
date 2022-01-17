@@ -27,32 +27,12 @@ namespace chainbase {
    using node_allocator = chainbase_node_allocator<T, pinnable_mapped_file::segment_manager>;
 
    /**
-    *  Object ID type that includes the type of the object it references
-    */
-   template<typename T>
-   class oid {
-      public:
-         oid( int64_t i = 0 ):_id(i){}
-
-         oid& operator++() { ++_id; return *this; }
-
-         friend bool operator < ( const oid& a, const oid& b ) { return a._id < b._id; }
-         friend bool operator > ( const oid& a, const oid& b ) { return a._id > b._id; }
-         friend bool operator <= ( const oid& a, const oid& b ) { return a._id <= b._id; }
-         friend bool operator >= ( const oid& a, const oid& b ) { return a._id >= b._id; }
-         friend bool operator == ( const oid& a, const oid& b ) { return a._id == b._id; }
-         friend bool operator != ( const oid& a, const oid& b ) { return a._id != b._id; }
-
-         int64_t _id = 0;
-   };
-
-   /**
     *  Object base class that must be inherited when implementing database objects
     */
    template<uint16_t TypeNumber, typename Derived>
    struct object
    {
-      typedef oid<Derived> id_type;
+      using id_type = uint64_t;
       static const uint16_t type_id = TypeNumber;
    };
 
@@ -350,13 +330,6 @@ namespace chainbase {
              auto itr = idx.find( std::forward< CompatibleKey >( key ) );
              if( itr == idx.end() ) return nullptr;
              return &*itr;
-         }
-
-         template< typename ObjectType >
-         const ObjectType* find( oid< ObjectType > key = oid< ObjectType >() ) const
-         {
-             typedef typename get_index_type< ObjectType >::type index_type;
-             return get_index< index_type >().find( key );
          }
 
          template<typename ObjectType, typename Modifier>

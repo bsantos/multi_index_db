@@ -355,7 +355,7 @@ namespace chainbase {
       struct undo_state {
          typename std::allocator_traits<Allocator>::pointer old_values_end;
          typename std::allocator_traits<Allocator>::pointer removed_values_end;
-         id_type old_next_id = 0;
+         id_type old_next_id {};
          uint64_t ctime = 0; // _monotonic_revision at the point the undo_state was created
       };
 
@@ -910,7 +910,7 @@ namespace chainbase {
       list_base<node, index0_type> _removed_values;
       rebind_alloc_t<Allocator, node> _allocator;
       rebind_alloc_t<Allocator, old_node> _old_values_allocator;
-      id_type _next_id = 0;
+      id_type _next_id {};
       int64_t _revision = 0;
       uint64_t _monotonic_revision = 0;
       uint32_t                        _size_of_value_type = sizeof(node);
