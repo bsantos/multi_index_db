@@ -916,29 +916,4 @@ namespace chainbase {
       uint32_t                        _size_of_value_type = sizeof(node);
       uint32_t                        _size_of_this = sizeof(undo_index);
    };
-
-   template<typename MultiIndexContainer>
-   struct multi_index_to_undo_index_impl;
-
-   template<typename T, typename I, typename A>
-   struct mi_to_ui_ii;
-   template<typename T, typename... I, typename A>
-   struct mi_to_ui_ii<T, boost::mp11::mp_list<I...>, A> {
-      using type = undo_index<T, A, I...>;
-   };
-
-   struct to_mp11 {
-      template<typename State, typename T>
-      using apply = boost::mpl::identity<boost::mp11::mp_push_back<State, T>>;
-   };
-
-   template<typename T, typename I, typename A>
-   struct multi_index_to_undo_index_impl<boost::multi_index_container<T, I, A>> {
-      using as_mp11 = typename boost::mpl::fold<I, boost::mp11::mp_list<>, to_mp11>::type;
-      using type = typename mi_to_ui_ii<T, as_mp11, A>::type;
-   };
-
-   // Converts a multi_index_container to a corresponding undo_index.
-   template<typename MultiIndexContainer>
-   using multi_index_to_undo_index = typename multi_index_to_undo_index_impl<MultiIndexContainer>::type;
 }

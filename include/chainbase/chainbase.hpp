@@ -53,8 +53,16 @@ namespace chainbase {
    template<typename Constructor, typename Allocator> \
    OBJECT_TYPE( Constructor&& c, Allocator&&  ) { c(*this); }
 
-   template<typename MultiIndexType>
-   using generic_index = multi_index_to_undo_index<MultiIndexType>;
+   template<class MultiIndexType>
+   struct generic_index_impl;
+
+   template<class T, class ...I>
+   struct generic_index_impl<undo_index<T, chainbase::node_allocator<T>, I...>> {
+      using type = undo_index<T, chainbase::node_allocator<T>, I...>;
+   };
+
+   template<class MultiIndexType>
+   using generic_index = typename generic_index_impl<MultiIndexType>::type;
 
    class abstract_session {
       public:
@@ -368,6 +376,6 @@ namespace chainbase {
          std::vector<std::unique_ptr<abstract_index>>                _index_map;
    };
 
-   template<typename Object, typename... Args>
-   using shared_multi_index_container = boost::multi_index_container<Object,Args..., chainbase::node_allocator<Object> >;
-}  // namepsace chainbase
+   template<class Object, class ...Indices>
+   using multi_index = undo_index<Object, chainbase::node_allocator<Object>, Indices...>;
+}
