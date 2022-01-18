@@ -1,14 +1,9 @@
 #pragma once
 
-#include <chainbase/pinnable_mapped_file.hpp>
-#include <boost/interprocess/allocators/allocator.hpp>
-
 #include <string>
 #include <cstdint>
 
 namespace chainbase {
-	namespace bip = boost::interprocess;
-
 	/**
 	 *  ID type that uniquely identifies an object in the database
 	 */
@@ -37,10 +32,4 @@ namespace chainbase {
 		using id_type = uint64_t;
 		static constexpr oid type_id = TypeId;
 	};
-
-	/**
-	 *  Generic standard allocator for object data members
-	 */
-	template<class T>
-	using allocator = bip::allocator<T, pinnable_mapped_file::segment_manager>;
 }

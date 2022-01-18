@@ -2,6 +2,7 @@
 
 #include <chainbase/object.hpp>
 #include <chainbase/undo_index.hpp>
+#include <chainbase/allocator.hpp>
 #include <chainbase/detail/database.hpp>
 
 #include <boost/throw_exception.hpp>
