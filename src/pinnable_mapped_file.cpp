@@ -1,3 +1,4 @@
+#include <chainbase/error.hpp>
 #include <chainbase/pinnable_mapped_file.hpp>
 #include <chainbase/environment.hpp>
 
@@ -5,50 +6,18 @@
 
 namespace chainbase {
 
-const char* chainbase_error_category::name() const noexcept {
-   return "chainbase";
-}
-
-std::string chainbase_error_category::message(int ev) const {
-   switch(ev) {
-      case db_error_code::ok: 
-         return "Ok";
-      case db_error_code::dirty:
-         return "Database dirty flag set";
-      case db_error_code::incompatible:
-         return "Database incompatible; All environment parameters must match";
-      case db_error_code::incorrect_db_version:
-         return "Database format not compatible with this version of chainbase";
-      case db_error_code::not_found:
-         return "Database file not found";
-      case db_error_code::bad_size:
-         return "Bad size";
-      case db_error_code::bad_header:
-         return "Failed to read DB header";
-      case db_error_code::no_access:
-         return "Could not gain write access to the shared memory file";
-      default:
-         return "Unrecognized error code";
-   }
-}
-
-const std::error_category& chainbase_error_category() {
-   static class chainbase_error_category the_category;
-   return the_category;
-}
-
 pinnable_mapped_file::pinnable_mapped_file(const fs::path& fpath, bool writable, uint64_t db_file_size, bool allow_dirty)
    : _database_name(fpath.filename().string())
    , _writable(writable)
 {
    if(db_file_size % db_size_multiple_requirement) {
       std::string what_str("database must be multiple of " + std::to_string(db_size_multiple_requirement) + " bytes");
-      BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::bad_size), what_str));
+      BOOST_THROW_EXCEPTION(std::system_error(make_error_code(errc::bad_size), what_str));
    }
 
    if(!_writable && !fs::exists(fpath)){
       std::string what_str("database file not found at " + fpath.string());
-      BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::not_found), what_str));
+      BOOST_THROW_EXCEPTION(std::system_error(make_error_code(errc::not_found), what_str));
    }
 
    if (auto dir = fpath.parent_path(); !dir.empty())
@@ -59,20 +28,20 @@ pinnable_mapped_file::pinnable_mapped_file(const fs::path& fpath, bool writable,
       std::ifstream hs(fpath.generic_string(), std::ifstream::binary);
       hs.read(header, header_size);
       if(hs.fail())
-         BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::bad_header)));
+         BOOST_THROW_EXCEPTION(std::system_error(make_error_code(errc::bad_header)));
 
       db_header* dbheader = reinterpret_cast<db_header*>(header);
       if(dbheader->id != header_id || dbheader->size != header_size) {
          std::string what_str("\"" + _database_name + "\" database format not compatible with this version of chainbase");
-         BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::incorrect_db_version), what_str));
+         BOOST_THROW_EXCEPTION(std::system_error(make_error_code(errc::incorrect_db_version), what_str));
       }
       if(!allow_dirty && dbheader->dirty) {
          std::string what_str("\"" + _database_name + "\" database dirty flag set");
-         BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::dirty)));
+         BOOST_THROW_EXCEPTION(std::system_error(make_error_code(errc::dirty)));
       }
       if(dbheader->dbenviron != environment()) {
          std::string what_str("\"" + _database_name + "\" database was created with a chainbase from a different environment:\n" + dbheader->dbenviron.str());
-         BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::incompatible), what_str));
+         BOOST_THROW_EXCEPTION(std::system_error(make_error_code(errc::incompatible), what_str));
       }
    }
 
@@ -110,7 +79,7 @@ pinnable_mapped_file::pinnable_mapped_file(const fs::path& fpath, bool writable,
    if(_writable) {
       _mapped_file_lock = bip::file_lock(fpath.generic_string().c_str());
       if(!_mapped_file_lock.try_lock())
-         BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::no_access)));
+         BOOST_THROW_EXCEPTION(std::system_error(make_error_code(errc::no_access)));
 
       dirty();
    }
@@ -159,42 +128,6 @@ void pinnable_mapped_file::dirty()
 bool pinnable_mapped_file::dirty() const
 {
    return *((char*)_file_mapped_region.get_address()+header_dirty_bit_offset);
-}
-
-static std::string_view print_os(environment::os_t os) {
-   switch(os) {
-      case environment::OS_LINUX: return "Linux";
-      case environment::OS_MACOS: return "macOS";
-      case environment::OS_WINDOWS: return "Windows";
-   }
-   return {};
-}
-
-static std::string_view print_arch(environment::arch_t arch) {
-   switch(arch) {
-      case environment::ARCH_X86_64: return "x86_64";
-      case environment::ARCH_ARM: return "ARM";
-   }
-   return {};
-}
-
-std::string chainbase::environment::str() const
-{
-   std::stringstream ss;
-
-   ss << *this;
-   return ss.str();
-}
-
-std::ostream& operator<<(std::ostream& os, const chainbase::environment& dt) {
-   os << std::right << std::setw(17) << "Compiler: " << dt.compiler << std::endl;
-   os << std::right << std::setw(17) << "Debug: " << (dt.debug ? "Yes" : "No") << std::endl;
-   os << std::right << std::setw(17) << "OS: " << print_os(dt.os) << std::endl;
-   os << std::right << std::setw(17) << "Arch: " << print_arch(dt.arch) << std::endl;
-   os << std::right << std::setw(17) << "Boost: " << dt.boost_version/100000 << "."
-                                                  << dt.boost_version/100%1000 << "."
-                                                  << dt.boost_version%100 << std::endl;
-   return os;
 }
 
 }

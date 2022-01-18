@@ -16,29 +16,6 @@ namespace chainbase {
 namespace bip = boost::interprocess;
 namespace fs = std::filesystem;
 
-enum db_error_code {
-   ok = 0,
-   dirty,
-   incompatible,
-   incorrect_db_version,
-   not_found,
-   bad_size,
-   bad_header,
-   no_access,
-};
-
-const std::error_category& chainbase_error_category();
-
-inline std::error_code make_error_code(db_error_code e) noexcept {
-   return std::error_code(static_cast<int>(e), chainbase_error_category());
-}
-
-class chainbase_error_category : public std::error_category {
-public:
-   const char* name() const noexcept override;
-   std::string message(int ev) const override;
-};
-
 class pinnable_mapped_file {
    public:
       constexpr static unsigned db_size_multiple_requirement = 1024*1024; //1MB

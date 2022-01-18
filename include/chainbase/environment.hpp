@@ -1,5 +1,7 @@
 #pragma once
 
+#include <boost/version.hpp>
+
 #include <iomanip>
 #include <cstdint>
 #include <cstring>
