@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chainbase/object.hpp>
 #include <chainbase/undo_index.hpp>
 #include <chainbase/pinnable_mapped_file.hpp>
 
@@ -9,60 +10,12 @@
 #include <boost/interprocess/allocators/allocator.hpp>
 
 #include <vector>
-#include <string>
 #include <stdexcept>
 #include <filesystem>
 
 namespace chainbase {
    namespace bip = boost::interprocess;
    namespace fs = std::filesystem;
-
-   template<typename T>
-   using allocator = bip::allocator<T, pinnable_mapped_file::segment_manager>;
-
-   /**
-    *  ID type that uniquely identifies an object in the database
-    */
-   template<size_t N>
-   struct oid {
-      constexpr oid(const char (&str)[N], uint16_t index)
-         : index { index }
-      {
-         std::copy_n(str, N, c_str);
-      }
-
-      std::string str() const { return c_str; }
-
-      uint16_t index;
-      char c_str[N];
-   };
-
-   /**
-    *  Object base class that must be inherited when implementing database objects
-    */
-   template<oid TypeId, class Derived>
-   struct object
-   {
-      using id_type = uint64_t;
-      static constexpr oid type_id = TypeId;
-   };
-
-   /**
-    * This class is ment to be specified to enable lookup of index type by object type using
-    * the SET_INDEX_TYPE macro.
-    **/
-   template<typename T>
-   struct get_index_type {};
-
-   /**
-    *  This macro must be used at global scope and OBJECT_TYPE and INDEX_TYPE must be fully qualified
-    */
-   #define CHAINBASE_SET_INDEX_TYPE( OBJECT_TYPE, INDEX_TYPE )  \
-   namespace chainbase { template<> struct get_index_type<OBJECT_TYPE> { typedef INDEX_TYPE type; }; }
-
-   #define CHAINBASE_DEFAULT_CONSTRUCTOR( OBJECT_TYPE ) \
-   template<typename Constructor, typename Allocator> \
-   OBJECT_TYPE( Constructor&& c, Allocator&&  ) { c(*this); }
 
    template<class MultiIndexType>
    struct generic_index_impl;
@@ -337,37 +290,6 @@ namespace chainbase {
             assert( _index_map.size() > index_type::value_type::type_id.index );
             assert( _index_map[index_type::value_type::type_id.index] );
             return *index_type_ptr( _index_map[index_type::value_type::type_id.index]->get() );
-         }
-
-         template< typename ObjectType, typename IndexedByType, typename CompatibleKey >
-         const ObjectType* find( CompatibleKey&& key )const
-         {
-             typedef typename get_index_type< ObjectType >::type index_type;
-             const auto& idx = get_index< index_type >().indices().template get< IndexedByType >();
-             auto itr = idx.find( std::forward< CompatibleKey >( key ) );
-             if( itr == idx.end() ) return nullptr;
-             return &*itr;
-         }
-
-         template<typename ObjectType, typename Modifier>
-         void modify( const ObjectType& obj, Modifier&& m )
-         {
-             typedef typename get_index_type<ObjectType>::type index_type;
-             get_mutable_index<index_type>().modify( obj, m );
-         }
-
-         template<typename ObjectType>
-         void remove( const ObjectType& obj )
-         {
-             typedef typename get_index_type<ObjectType>::type index_type;
-             return get_mutable_index<index_type>().remove( obj );
-         }
-
-         template<typename ObjectType, typename Constructor>
-         const ObjectType& create( Constructor&& con )
-         {
-             typedef typename get_index_type<ObjectType>::type index_type;
-             return get_mutable_index<index_type>().emplace( std::forward<Constructor>(con) );
          }
 
       private:
