@@ -1,8 +1,8 @@
 #include <chainbase/chainbase.hpp>
 
 namespace chainbase {
-	database::database(const fs::path& dir, open_flags flags, uint64_t shared_file_size, bool allow_dirty)
-		: _db_file(dir, flags & database::read_write, shared_file_size, allow_dirty)
+	database::database(const fs::path& dir, open_flags flags, uint64_t db_file_size, bool allow_dirty)
+		: _db_file(dir, flags & database::read_write, db_file_size, allow_dirty)
 		, _read_only(flags == database::read_only)
 	{}
 

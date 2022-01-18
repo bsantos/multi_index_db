@@ -733,4 +733,7 @@ namespace chainbase {
       uint32_t                        _size_of_value_type = sizeof(node);
       uint32_t                        _size_of_this = sizeof(undo_index);
    };
+
+   template<class Object, class... Indices>
+   using multi_index = undo_index<Object, allocator<Object>, Indices...>;
 }
