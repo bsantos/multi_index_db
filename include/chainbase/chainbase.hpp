@@ -1,8 +1,7 @@
 #pragma once
 
-#include <boost/multi_index_container.hpp>
-#include <chainbase/chainbase_node_allocator.hpp>
 #include <chainbase/undo_index.hpp>
+#include <chainbase/pinnable_mapped_file.hpp>
 
 #include <boost/config.hpp>
 #include <boost/throw_exception.hpp>
@@ -15,15 +14,11 @@
 #include <filesystem>
 
 namespace chainbase {
-
    namespace bip = boost::interprocess;
    namespace fs = std::filesystem;
 
    template<typename T>
    using allocator = bip::allocator<T, pinnable_mapped_file::segment_manager>;
-
-   template<typename T>
-   using node_allocator = chainbase_node_allocator<T, pinnable_mapped_file::segment_manager>;
 
    /**
     *  ID type that uniquely identifies an object in the database
@@ -73,8 +68,8 @@ namespace chainbase {
    struct generic_index_impl;
 
    template<class T, class ...I>
-   struct generic_index_impl<undo_index<T, chainbase::node_allocator<T>, I...>> {
-      using type = undo_index<T, chainbase::node_allocator<T>, I...>;
+   struct generic_index_impl<undo_index<T, allocator<T>, I...>> {
+      using type = undo_index<T, allocator<T>, I...>;
    };
 
    template<class MultiIndexType>
@@ -391,5 +386,5 @@ namespace chainbase {
    };
 
    template<class Object, class ...Indices>
-   using multi_index = undo_index<Object, chainbase::node_allocator<Object>, Indices...>;
+   using multi_index = undo_index<Object, allocator<Object>, Indices...>;
 }

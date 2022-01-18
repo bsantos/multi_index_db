@@ -1,21 +1,19 @@
 #pragma once
 
-#include <utility>
-#include <type_traits>
-
 #include <boost/mp11/list.hpp>
 #include <boost/mp11/algorithm.hpp>
 #include <boost/intrusive/set.hpp>
 #include <boost/intrusive/avltree.hpp>
 #include <boost/intrusive/slist.hpp>
 #include <boost/multi_index_container_fwd.hpp>
+#include <boost/interprocess/allocators/allocator.hpp>
 
-namespace chainbase {
-	template<typename T, typename S>
-	class chainbase_node_allocator;
-}
+#include <utility>
+#include <type_traits>
 
 namespace chainbase::detail {
+	namespace bip = boost::interprocess;
+
 	template<class KeyExtractor, class T>
 	struct get_key {
 		using type = std::decay_t<decltype(KeyExtractor {}(std::declval<const T&>()))>;
@@ -231,16 +229,29 @@ namespace chainbase::detail {
 	using list_base = boost::intrusive::slist<typename Node::value_type, boost::intrusive::value_traits<offset_node_value_traits<Node, Tag>>>;
 
 	// Allows nested object to use a different allocator from the container.
-	template<template<typename> class A, typename T>
-	auto& propagate_allocator(A<T>& a) { return a; }
-	template<typename T, typename S>
-	auto& propagate_allocator(boost::interprocess::allocator<T, S>& a) { return a; }
-	template<typename T, typename S, std::size_t N>
-	auto propagate_allocator(boost::interprocess::node_allocator<T, S, N>& a) { return boost::interprocess::allocator<T, S>{a.get_segment_manager()}; }
-	template<typename T, typename S, std::size_t N>
-	auto propagate_allocator(boost::interprocess::private_node_allocator<T, S, N>& a) { return boost::interprocess::allocator<T, S>{a.get_segment_manager()}; }
-	template<typename T, typename S>
-	auto propagate_allocator(chainbase::chainbase_node_allocator<T, S>& a) { return boost::interprocess::allocator<T, S>{a.get_segment_manager()}; }
+	template<template<class> class A, class T>
+	auto& propagate_allocator(A<T>& a)
+	{
+		return a;
+	}
+
+	template<class T, class S>
+	auto& propagate_allocator(bip::allocator<T, S>& a)
+	{
+		return a;
+	}
+
+	template<class T, class S, std::size_t N>
+	auto propagate_allocator(bip::node_allocator<T, S, N>& a)
+	{
+		return bip::allocator<T, S> { a.get_segment_manager() };
+	}
+
+	template<class T, class S, std::size_t N>
+	auto propagate_allocator(bip::private_node_allocator<T, S, N>& a)
+	{
+		return bip::allocator<T, S> { a.get_segment_manager() };
+	}
 
 	template<class L, class It, class Pred, class Disposer>
 	inline void remove_if_after_and_dispose(L& l, It it, It end, Pred&& p, Disposer&& d)
