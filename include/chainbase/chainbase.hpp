@@ -2,311 +2,247 @@
 
 #include <chainbase/object.hpp>
 #include <chainbase/undo_index.hpp>
+#include <chainbase/detail/database.hpp>
 #include <chainbase/pinnable_mapped_file.hpp>
 
-#include <boost/config.hpp>
 #include <boost/throw_exception.hpp>
-#include <boost/multi_index_container.hpp>
-#include <boost/interprocess/allocators/allocator.hpp>
 
 #include <vector>
+#include <memory>
 #include <stdexcept>
 #include <filesystem>
 
 namespace chainbase {
-   namespace bip = boost::interprocess;
-   namespace fs = std::filesystem;
+	namespace fs = std::filesystem;
 
-   template<class MultiIndexType>
-   struct generic_index_impl;
+	namespace detail {
+		template<class MultiIndexType>
+		struct get_multi_index_impl;
 
-   template<class T, class ...I>
-   struct generic_index_impl<undo_index<T, allocator<T>, I...>> {
-      using type = undo_index<T, allocator<T>, I...>;
-   };
+		template<class T, class A, class... I>
+		struct get_multi_index_impl<undo_index<T, A, I...>> {
+			using type = undo_index<T, A, I...>;
+		};
 
-   template<class MultiIndexType>
-   using generic_index = typename generic_index_impl<MultiIndexType>::type;
+		template<class MultiIndexType>
+		using get_multi_index = typename get_multi_index_impl<MultiIndexType>::type;
+	}
 
-   class abstract_session {
-      public:
-         virtual ~abstract_session(){};
-         virtual void push()             = 0;
-         virtual void squash()           = 0;
-         virtual void undo()             = 0;
-   };
+	/**
+	 *  Database for multi_index containers
+	 */
+	class database {
+	public:
+		enum open_flags { read_only = 0, read_write = 1 };
 
-   template<typename SessionType>
-   class session_impl : public abstract_session
-   {
-      public:
-         session_impl( SessionType&& s ):_session( std::move( s ) ){}
+		database(const fs::path& dir, open_flags write = read_only, uint64_t shared_file_size = 0, bool allow_dirty = false);
+		~database();
+		database(database&&) = default;
+		database& operator=(database&&) = default;
 
-         virtual void push() override  { _session.push();  }
-         virtual void squash() override{ _session.squash(); }
-         virtual void undo() override  { _session.undo();  }
-      private:
-         SessionType _session;
-   };
+		void dirty()
+		{
+			_db_file.dirty();
+			_read_only = false;
+		}
 
-   class abstract_index
-   {
-      public:
-         abstract_index( void* i ):_idx_ptr(i){}
-         virtual ~abstract_index(){}
-         virtual void     set_revision( uint64_t revision ) = 0;
-         virtual std::unique_ptr<abstract_session> start_undo_session() = 0;
+		void flush()
+		{
+			_db_file.flush();
+			_read_only = true;
+		}
 
-         virtual int64_t revision()const = 0;
-         virtual void    undo()const = 0;
-         virtual void    squash()const = 0;
-         virtual void    commit( int64_t revision )const = 0;
-         virtual void    undo_all()const = 0;
-         virtual std::pair<int64_t, int64_t> undo_stack_revision_range()const = 0;
+		bool is_read_only() const
+		{
+			return _read_only;
+		}
 
-         void* get()const { return _idx_ptr; }
+		struct session {
+		public:
+			session(session&& s)
+			    : _index_sessions { std::move(s._index_sessions) }
+			{}
+			session(std::vector<std::unique_ptr<detail::abstract_undo_session>>&& s)
+			    : _index_sessions { std::move(s) }
+			{}
 
-      private:
-         void* _idx_ptr;
-   };
+			~session()
+			{
+				undo();
+			}
 
-   template<typename BaseIndex>
-   class index_impl : public abstract_index {
-      public:
-         index_impl( BaseIndex& base ):abstract_index( &base ),_base(base){}
+			void push()
+			{
+				for (auto& i : _index_sessions)
+					i->push();
 
-         virtual std::unique_ptr<abstract_session> start_undo_session() override {
-            return std::unique_ptr<abstract_session>(new session_impl<typename BaseIndex::session>( _base.start_undo_session() ) );
-         }
+				_index_sessions.clear();
+			}
 
-         virtual void     set_revision( uint64_t revision ) override { _base.set_revision( revision ); }
-         virtual int64_t  revision()const  override { return _base.revision(); }
-         virtual void     undo()const  override { _base.undo(); }
-         virtual void     squash()const  override { _base.squash(); }
-         virtual void     commit( int64_t revision )const  override { _base.commit(revision); }
-         virtual void     undo_all() const override {_base.undo_all(); }
-         virtual std::pair<int64_t, int64_t> undo_stack_revision_range()const override { return _base.undo_stack_revision_range(); }
+			void squash()
+			{
+				for (auto& i : _index_sessions)
+					i->squash();
 
-      private:
-         BaseIndex& _base;
-   };
+				_index_sessions.clear();
+			}
 
-   template<typename IndexType>
-   class index : public index_impl<IndexType> {
-      public:
-         index( IndexType& i ):index_impl<IndexType>( i ){}
-   };
+			void undo()
+			{
+				for (auto& i : _index_sessions)
+					i->undo();
+				_index_sessions.clear();
+			}
 
-   /**
-    *  This class
-    */
-   class database
-   {
-      public:
-         enum open_flags {
-            read_only     = 0,
-            read_write    = 1
-         };
+		private:
+			friend class database;
+			session() {}
 
-         database(const fs::path& dir, open_flags write = read_only, uint64_t shared_file_size = 0, bool allow_dirty = false);
-         ~database();
-         database(database&&) = default;
-         database& operator=(database&&) = default;
+			std::vector<std::unique_ptr<detail::abstract_undo_session>> _index_sessions;
+		};
 
-         void dirty()
-         {
-            _db_file.dirty();
-            _read_only = false;
-         }
+		session start_undo_session();
 
-         void flush()
-         {
-            _db_file.flush();
-            _read_only = true;
-         }
+		int64_t revision() const
+		{
+			if (_index_list.size() == 0)
+				return -1;
+			return _index_list[0]->revision();
+		}
 
-         bool is_read_only() const { return _read_only; }
+		void undo();
+		void squash();
+		void commit(int64_t revision);
+		void undo_all();
 
+		void set_revision(uint64_t revision)
+		{
+			for (auto i : _index_list)
+				i->set_revision(revision);
+		}
 
-         struct session {
-            public:
-               session( session&& s ):_index_sessions( std::move(s._index_sessions) ){}
-               session( std::vector<std::unique_ptr<abstract_session>>&& s ):_index_sessions( std::move(s) )
-               {
-               }
+		template<typename MultiIndexType>
+		void add_index()
+		{
+			constexpr auto type_id = detail::get_multi_index<MultiIndexType>::value_type::type_id;
+			using index_type = detail::get_multi_index<MultiIndexType>;
+			using index_alloc = typename index_type::allocator_type;
 
-               ~session() {
-                  undo();
-               }
+			if (!(_index_map.size() <= type_id.index || _index_map[type_id.index] == nullptr)) {
+				BOOST_THROW_EXCEPTION(std::logic_error(type_id.str() + " is already in use"));
+			}
 
-               void push()
-               {
-                  for( auto& i : _index_sessions ) i->push();
-                  _index_sessions.clear();
-               }
+			index_type* idx_ptr = nullptr;
+			if (_read_only)
+				idx_ptr = _db_file.get_segment_manager()->find_no_lock<index_type>(type_id.c_str).first;
+			else
+				idx_ptr = _db_file.get_segment_manager()->find<index_type>(type_id.c_str).first;
+			bool first_time_adding = false;
+			if (!idx_ptr) {
+				if (_read_only) {
+					BOOST_THROW_EXCEPTION(std::runtime_error("unable to find index for " + type_id.str() + " in read only database"));
+				}
+				first_time_adding = true;
+				idx_ptr = _db_file.get_segment_manager()->construct<index_type>(type_id.c_str)(index_alloc(_db_file.get_segment_manager()));
+			}
 
-               void squash()
-               {
-                  for( auto& i : _index_sessions ) i->squash();
-                  _index_sessions.clear();
-               }
+			idx_ptr->validate();
 
-               void undo()
-               {
-                  for( auto& i : _index_sessions ) i->undo();
-                  _index_sessions.clear();
-               }
+			// Ensure the undo stack of added index is consistent with the other indices in the database
+			if (_index_list.size() > 0) {
+				auto expected_revision_range = _index_list.front()->undo_stack_revision_range();
+				auto added_index_revision_range = idx_ptr->undo_stack_revision_range();
 
-            private:
-               friend class database;
-               session(){}
+				if (added_index_revision_range.first != expected_revision_range.first || added_index_revision_range.second != expected_revision_range.second) {
+					if (!first_time_adding) {
+						BOOST_THROW_EXCEPTION(std::logic_error(
+						    "existing index for " + type_id.str() + " has an undo stack (revision range [" + std::to_string(added_index_revision_range.first) +
+						    ", " + std::to_string(added_index_revision_range.second) +
+						    "]) that is inconsistent with other indices in the database (revision range [" + std::to_string(expected_revision_range.first) +
+						    ", " + std::to_string(expected_revision_range.second) + "]); corrupted database?"));
+					}
 
-               std::vector< std::unique_ptr<abstract_session> > _index_sessions;
-         };
+					if (_read_only) {
+						BOOST_THROW_EXCEPTION(
+						    std::logic_error("new index for " + type_id.str() +
+						                     " requires an undo stack that is consistent with other indices in the database; cannot fix in read-only mode"));
+					}
 
-         session start_undo_session();
+					idx_ptr->set_revision(static_cast<uint64_t>(expected_revision_range.first));
+					while (idx_ptr->revision() < expected_revision_range.second) {
+						idx_ptr->start_undo_session().push();
+					}
+				}
+			}
 
-         int64_t revision()const {
-             if( _index_list.size() == 0 ) return -1;
-             return _index_list[0]->revision();
-         }
+			if (type_id.index >= _index_map.size())
+				_index_map.resize(type_id.index + 1);
 
-         void undo();
-         void squash();
-         void commit( int64_t revision );
-         void undo_all();
+			auto new_index = std::make_unique<detail::multi_index<index_type>>(*idx_ptr);
+			_index_list.push_back(new_index.get());
+			_index_map[type_id.index] = std::move(new_index);
+		}
 
+		auto get_segment_manager() -> decltype(((pinnable_mapped_file*) nullptr)->get_segment_manager())
+		{
+			return _db_file.get_segment_manager();
+		}
 
-         void set_revision( uint64_t revision )
-         {
-             for( auto i : _index_list ) i->set_revision( revision );
-         }
+		auto get_segment_manager() const -> std::add_const_t<decltype(((pinnable_mapped_file*) nullptr)->get_segment_manager())>
+		{
+			return _db_file.get_segment_manager();
+		}
 
+		size_t get_free_memory() const
+		{
+			return _db_file.get_segment_manager()->get_free_memory();
+		}
 
-         template<typename MultiIndexType>
-         void add_index() {
-            constexpr auto type_id = generic_index<MultiIndexType>::value_type::type_id;
-            using index_type = generic_index<MultiIndexType>;
-            using index_alloc = typename index_type::allocator_type;
+		template<typename MultiIndexType>
+		const detail::get_multi_index<MultiIndexType>& get_index() const
+		{
+			typedef detail::get_multi_index<MultiIndexType> index_type;
+			typedef index_type* index_type_ptr;
+			assert(_index_map.size() > index_type::value_type::type_id.index);
+			assert(_index_map[index_type::value_type::type_id.index]);
+			return *index_type_ptr(_index_map[index_type::value_type::type_id.index]->get());
+		}
 
-            if( !( _index_map.size() <= type_id.index || _index_map[ type_id.index ] == nullptr ) ) {
-               BOOST_THROW_EXCEPTION( std::logic_error( type_id.str() + " is already in use" ) );
-            }
+		template<typename MultiIndexType, typename ByIndex>
+		auto get_index() const -> decltype(((detail::get_multi_index<MultiIndexType>*) (nullptr))->indices().template get<ByIndex>())
+		{
+			typedef detail::get_multi_index<MultiIndexType> index_type;
+			typedef index_type* index_type_ptr;
+			assert(_index_map.size() > index_type::value_type::type_id.index);
+			assert(_index_map[index_type::value_type::type_id.index]);
+			return index_type_ptr(_index_map[index_type::value_type::type_id.index]->get())->indices().template get<ByIndex>();
+		}
 
-            index_type* idx_ptr = nullptr;
-            if( _read_only )
-               idx_ptr = _db_file.get_segment_manager()->find_no_lock< index_type >( type_id.c_str ).first;
-            else
-               idx_ptr = _db_file.get_segment_manager()->find< index_type >( type_id.c_str ).first;
-            bool first_time_adding = false;
-            if( !idx_ptr ) {
-               if( _read_only ) {
-                  BOOST_THROW_EXCEPTION( std::runtime_error( "unable to find index for " + type_id.str() + " in read only database" ) );
-               }
-               first_time_adding = true;
-               idx_ptr = _db_file.get_segment_manager()->construct< index_type >( type_id.c_str )( index_alloc( _db_file.get_segment_manager() ) );
-             }
+		template<typename MultiIndexType>
+		detail::get_multi_index<MultiIndexType>& get_mutable_index()
+		{
+			typedef detail::get_multi_index<MultiIndexType> index_type;
+			typedef index_type* index_type_ptr;
+			assert(_index_map.size() > index_type::value_type::type_id.index);
+			assert(_index_map[index_type::value_type::type_id.index]);
+			return *index_type_ptr(_index_map[index_type::value_type::type_id.index]->get());
+		}
 
-            idx_ptr->validate();
+	private:
+		pinnable_mapped_file _db_file;
+		bool _read_only = false;
 
-            // Ensure the undo stack of added index is consistent with the other indices in the database
-            if( _index_list.size() > 0 ) {
-               auto expected_revision_range = _index_list.front()->undo_stack_revision_range();
-               auto added_index_revision_range = idx_ptr->undo_stack_revision_range();
+		/**
+		 * This is a sparse list of known indices kept to accelerate creation of undo sessions
+		 */
+		std::vector<detail::abstract_multi_index*> _index_list;
 
-               if( added_index_revision_range.first != expected_revision_range.first ||
-                   added_index_revision_range.second != expected_revision_range.second ) {
+		/**
+		 * This is a full map (size 2^16) of all possible index designed for constant time lookup
+		 */
+		std::vector<std::unique_ptr<detail::abstract_multi_index>> _index_map;
+	};
 
-                  if( !first_time_adding ) {
-                     BOOST_THROW_EXCEPTION( std::logic_error(
-                        "existing index for " + type_id.str() + " has an undo stack (revision range [" +
-                        std::to_string(added_index_revision_range.first) + ", " + std::to_string(added_index_revision_range.second) +
-                        "]) that is inconsistent with other indices in the database (revision range [" +
-                        std::to_string(expected_revision_range.first) + ", " + std::to_string(expected_revision_range.second) +
-                        "]); corrupted database?"
-                     ) );
-                  }
-
-                  if( _read_only ) {
-                     BOOST_THROW_EXCEPTION( std::logic_error(
-                        "new index for " + type_id.str() +
-                        " requires an undo stack that is consistent with other indices in the database; cannot fix in read-only mode"
-                     ) );
-                  }
-
-                  idx_ptr->set_revision( static_cast<uint64_t>(expected_revision_range.first) );
-                  while( idx_ptr->revision() < expected_revision_range.second ) {
-                     idx_ptr->start_undo_session().push();
-                  }
-               }
-            }
-
-            if( type_id.index >= _index_map.size() )
-               _index_map.resize( type_id.index + 1 );
-
-            auto new_index = new index<index_type>( *idx_ptr );
-            _index_map[ type_id.index ].reset( new_index );
-            _index_list.push_back( new_index );
-         }
-
-         auto get_segment_manager() -> decltype( ((pinnable_mapped_file*)nullptr)->get_segment_manager()) {
-            return _db_file.get_segment_manager();
-         }
-
-         auto get_segment_manager()const -> std::add_const_t< decltype( ((pinnable_mapped_file*)nullptr)->get_segment_manager() ) > {
-            return _db_file.get_segment_manager();
-         }
-
-         size_t get_free_memory()const
-         {
-            return _db_file.get_segment_manager()->get_free_memory();
-         }
-
-         template<typename MultiIndexType>
-         const generic_index<MultiIndexType>& get_index()const
-         {
-            typedef generic_index<MultiIndexType> index_type;
-            typedef index_type*                   index_type_ptr;
-            assert( _index_map.size() > index_type::value_type::type_id.index );
-            assert( _index_map[index_type::value_type::type_id.index] );
-            return *index_type_ptr( _index_map[index_type::value_type::type_id.index]->get() );
-         }
-
-         template<typename MultiIndexType, typename ByIndex>
-         auto get_index()const -> decltype( ((generic_index<MultiIndexType>*)( nullptr ))->indices().template get<ByIndex>() )
-         {
-            typedef generic_index<MultiIndexType> index_type;
-            typedef index_type*                   index_type_ptr;
-            assert( _index_map.size() > index_type::value_type::type_id.index );
-            assert( _index_map[index_type::value_type::type_id.index] );
-            return index_type_ptr( _index_map[index_type::value_type::type_id.index]->get() )->indices().template get<ByIndex>();
-         }
-
-         template<typename MultiIndexType>
-         generic_index<MultiIndexType>& get_mutable_index()
-         {
-            typedef generic_index<MultiIndexType> index_type;
-            typedef index_type*                   index_type_ptr;
-            assert( _index_map.size() > index_type::value_type::type_id.index );
-            assert( _index_map[index_type::value_type::type_id.index] );
-            return *index_type_ptr( _index_map[index_type::value_type::type_id.index]->get() );
-         }
-
-      private:
-         pinnable_mapped_file                                        _db_file;
-         bool                                                        _read_only = false;
-
-         /**
-          * This is a sparse list of known indices kept to accelerate creation of undo sessions
-          */
-         std::vector<abstract_index*>                                _index_list;
-
-         /**
-          * This is a full map (size 2^16) of all possible index designed for constant time lookup
-          */
-         std::vector<std::unique_ptr<abstract_index>>                _index_map;
-   };
-
-   template<class Object, class ...Indices>
-   using multi_index = undo_index<Object, allocator<Object>, Indices...>;
+	template<class Object, class... Indices>
+	using multi_index = undo_index<Object, allocator<Object>, Indices...>;
 }
