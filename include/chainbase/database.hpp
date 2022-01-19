@@ -1,8 +1,5 @@
 #pragma once
 
-#include <chainbase/object.hpp>
-#include <chainbase/undo_index.hpp>
-#include <chainbase/allocator.hpp>
 #include <chainbase/detail/database.hpp>
 
 #include <boost/throw_exception.hpp>
@@ -14,22 +11,6 @@
 
 namespace chainbase {
 	namespace fs = std::filesystem;
-
-	template<class T, class A, class... I>
-   class undo_index;
-
-	namespace detail {
-		template<class MultiIndexType>
-		struct get_multi_index_impl;
-
-		template<class T, class A, class... I>
-		struct get_multi_index_impl<undo_index<T, A, I...>> {
-			using type = undo_index<T, A, I...>;
-		};
-
-		template<class MultiIndexType>
-		using get_multi_index = typename get_multi_index_impl<MultiIndexType>::type;
-	}
 
 	/**
 	 *  Database for multi_index containers
