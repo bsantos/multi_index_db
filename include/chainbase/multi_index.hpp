@@ -60,11 +60,6 @@ namespace chainbase {
 			std::get<0>(_indices).clear_and_dispose([&](pointer p) { dispose_node(*p); });
 		}
 
-		constexpr char const* name() const
-		{
-			return value_type::type_id.c_str;
-		}
-
 		void validate() const
 		{
 			if (sizeof(node) != _size_of_value_type || sizeof(*this) != _size_of_this)

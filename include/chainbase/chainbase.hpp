@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chainbase/name.hpp>
 #include <chainbase/error.hpp>
 #include <chainbase/object.hpp>
 #include <chainbase/database.hpp>
