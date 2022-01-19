@@ -196,9 +196,6 @@ namespace chainbase::detail {
 		static constexpr boost::intrusive::link_mode_type link_mode = boost::intrusive::normal_link;
 	};
 
-	template<class Allocator, class T>
-	using rebind_alloc_t = typename std::allocator_traits<Allocator>::template rebind_alloc<T>;
-
 	template<class Index>
 	struct index_tag_impl { using type = void; };
 
@@ -227,31 +224,6 @@ namespace chainbase::detail {
 
 	template<class Node, class Tag>
 	using list_base = boost::intrusive::slist<typename Node::value_type, boost::intrusive::value_traits<offset_node_value_traits<Node, Tag>>>;
-
-	// Allows nested object to use a different allocator from the container.
-	template<template<class> class A, class T>
-	auto& propagate_allocator(A<T>& a)
-	{
-		return a;
-	}
-
-	template<class T, class S>
-	auto& propagate_allocator(bip::allocator<T, S>& a)
-	{
-		return a;
-	}
-
-	template<class T, class S, std::size_t N>
-	auto propagate_allocator(bip::node_allocator<T, S, N>& a)
-	{
-		return bip::allocator<T, S> { a.get_segment_manager() };
-	}
-
-	template<class T, class S, std::size_t N>
-	auto propagate_allocator(bip::private_node_allocator<T, S, N>& a)
-	{
-		return bip::allocator<T, S> { a.get_segment_manager() };
-	}
 
 	template<class L, class It, class Pred, class Disposer>
 	inline void remove_if_after_and_dispose(L& l, It it, It end, Pred&& p, Disposer&& d)

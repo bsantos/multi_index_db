@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chainbase/allocator.hpp>
+#include <chainbase/detail/allocator.hpp>
 #include <chainbase/detail/scope_exit.hpp>
 #include <chainbase/detail/multi_index.hpp>
 
@@ -14,6 +14,9 @@
 #include <type_traits>
 
 namespace chainbase {
+	/**
+	 *  A container version of Boost.MultiIndex for memory mapped databases
+	 */
 	template<class T, class Allocator, class... Indices>
 	class basic_multi_index {
 	public:
