@@ -9,7 +9,6 @@ namespace chainbase {
 		incompatible,
 		incorrect_db_version,
 		not_found,
-		bad_size,
 		bad_header,
 		no_access,
 	};

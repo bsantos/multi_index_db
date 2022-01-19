@@ -6,4 +6,3 @@
 #include <chainbase/allocator.hpp>
 #include <chainbase/multi_index.hpp>
 #include <chainbase/environment.hpp>
-#include <chainbase/pinnable_mapped_file.hpp>

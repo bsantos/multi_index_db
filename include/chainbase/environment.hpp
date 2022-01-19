@@ -7,8 +7,8 @@
 #include <cstring>
 
 namespace chainbase {
-	constexpr size_t header_size = 384;
-	constexpr uint64_t header_id = 0x4277554c54494442ULL; // "BMULTIDB"
+	constexpr size_t header_size = 1024;
+	constexpr uint64_t header_id = 0x4277554c54494442ULL; // "MULTIIDB"
 
 	struct environment {
 		environment()

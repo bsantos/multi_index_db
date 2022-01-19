@@ -17,7 +17,6 @@ namespace chainbase {
 		case errc::incompatible: return "Database incompatible; All environment parameters must match";
 		case errc::incorrect_db_version: return "Database format not compatible with this version of chainbase";
 		case errc::not_found: return "Database file not found";
-		case errc::bad_size: return "Bad size";
 		case errc::bad_header: return "Failed to read DB header";
 		case errc::no_access: return "Could not gain write access to the shared memory file";
 		default: return "Unrecognized error code";

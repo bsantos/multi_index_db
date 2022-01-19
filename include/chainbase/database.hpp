@@ -1,8 +1,12 @@
 #pragma once
 
+#include <chainbase/allocator.hpp>
 #include <chainbase/detail/database.hpp>
 
 #include <boost/throw_exception.hpp>
+#include <boost/interprocess/file_mapping.hpp>
+#include <boost/interprocess/mapped_region.hpp>
+#include <boost/interprocess/sync/file_lock.hpp>
 
 #include <vector>
 #include <memory>
@@ -10,24 +14,64 @@
 #include <filesystem>
 
 namespace chainbase {
+	namespace bip = boost::interprocess;
 	namespace fs = std::filesystem;
+
+	/**
+	 *  Database open mode
+	 */
+	enum class open_mode {
+		read_only,
+		read_write
+	};
+
+	/**
+	 *  Database open action to be applied if dirty flag is set
+	 *
+	 *  What action should be applied on open if dirty flag is set.
+	 *   - fail:  fails with an error
+	 *   - reset:
+	 *   - allow: does nothing
+	 */
+	enum class dirty_action {
+		fail,  /// fail with an error/exception
+		allow, /// do nothing
+		reset, /// reset the database to a clean state over the existing one
+	};
+
+	/**
+	 *  Database open outcome
+	 *
+	 *  The state of database after opening
+	 */
+	enum class open_outcome {
+		good,      /// database file was opened with no issues
+		created,   /// a new database file was created
+		corrupted, /// database file dirty flag was set, data might be corrupted, proceed at your own risk
+		reset,     /// database file dirty flag was set, data has been reset to a clean state
+	};
 
 	/**
 	 *  Database for multi_index containers
 	 */
 	class database {
 	public:
-		enum open_flags { read_only = 0, read_write = 1 };
+		database(fs::path const& fpath, open_mode mode = open_mode::read_only, uint64_t db_file_size = 0, dirty_action action = dirty_action::fail);
+		~database() noexcept;
 
-		database(const fs::path& dir, open_flags write = read_only, uint64_t db_file_size = 0, bool allow_dirty = false);
-		~database();
-		database(database&&) = default;
-		database& operator=(database&&) = default;
+		database(database const&) = delete;
+		database& operator=(database const&) = delete;
 
-		bool is_read_only() const
-		{
-			return _read_only;
-		}
+		database(database&&) noexcept;
+		database& operator=(database&&) noexcept;
+
+		bool is_read_only() const { return _mode == open_mode::read_only; }
+		bool was_created() const { return _outcome == open_outcome::created || _outcome == open_outcome::reset; }
+		bool is_corrupted() const { return _outcome == open_outcome::corrupted; }
+		bool was_corrupted() const { return _outcome == open_outcome::reset; }
+
+		open_mode mode() const { return _mode; }
+		open_outcome outcome() const { return _outcome; }
 
 		struct session {
 		public:
@@ -104,14 +148,14 @@ namespace chainbase {
 				BOOST_THROW_EXCEPTION(std::logic_error(type_id.str() + " is already in use"));
 			}
 
-			index_type* idx_ptr = _db_file.get_segment_manager()->find<index_type>(type_id.c_str).first;
+			index_type* idx_ptr = _segment_manager->find<index_type>(type_id.c_str).first;
 			bool first_time_adding = false;
 			if (!idx_ptr) {
-				if (_read_only) {
+				if (is_read_only()) {
 					BOOST_THROW_EXCEPTION(std::runtime_error("unable to find index for " + type_id.str() + " in read only database"));
 				}
 				first_time_adding = true;
-				idx_ptr = _db_file.get_segment_manager()->construct<index_type>(type_id.c_str)(index_alloc(_db_file.get_segment_manager()));
+				idx_ptr = _segment_manager->construct<index_type>(type_id.c_str)(index_alloc(_segment_manager));
 			}
 
 			idx_ptr->validate();
@@ -130,7 +174,7 @@ namespace chainbase {
 						    ", " + std::to_string(expected_revision_range.second) + "]); corrupted database?"));
 					}
 
-					if (_read_only) {
+					if (is_read_only()) {
 						BOOST_THROW_EXCEPTION(
 						    std::logic_error("new index for " + type_id.str() +
 						                     " requires an undo stack that is consistent with other indices in the database; cannot fix in read-only mode"));
@@ -151,19 +195,29 @@ namespace chainbase {
 			_index_map[type_id.index] = std::move(new_index);
 		}
 
-		auto get_segment_manager()
+		segment_manager* get_segment_manager()
 		{
-			return _db_file.get_segment_manager();
+			return _segment_manager;
 		}
 
-		auto get_segment_manager() const
+		segment_manager const* get_segment_manager() const
 		{
-			return _db_file.get_segment_manager();
+			return _segment_manager;
 		}
 
 		size_t get_free_memory() const
 		{
-			return _db_file.get_segment_manager()->get_free_memory();
+			return _segment_manager->get_free_memory();
+		}
+
+		size_t get_used_memory() const
+		{
+			return get_segment_size() - get_free_memory();
+		}
+
+		size_t get_segment_size() const
+		{
+			return _segment_manager->get_size();
 		}
 
 		template<class MultiIndexType>
@@ -197,8 +251,19 @@ namespace chainbase {
 		}
 
 	private:
-		detail::pinnable_mapped_file _db_file;
-		bool _read_only = false;
+		void flush();
+		void dirty();
+		bool dirty() const;
+
+	private:
+		segment_manager* _segment_manager { nullptr };
+
+		open_mode _mode;
+		open_outcome _outcome;
+		fs::path _file_path;
+		bip::file_lock _file_lock;
+		bip::file_mapping _file_mapping;
+		bip::mapped_region _file_mapped_region;
 
 		std::vector<detail::abstract_multi_index*> _index_list;
 		std::vector<std::unique_ptr<detail::abstract_multi_index>> _index_map;

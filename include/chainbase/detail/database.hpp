@@ -1,7 +1,5 @@
 #pragma once
 
-#include <chainbase/pinnable_mapped_file.hpp>
-
 #include <memory>
 
 namespace chainbase {
