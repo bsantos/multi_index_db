@@ -10,10 +10,16 @@
 #include <memory>
 #include <type_traits>
 
+namespace chainbase::detail {
+	struct undo_node_extra {
+		uint64_t mtime = 0;
+	};
+}
+
 namespace chainbase {
 	template<class T, class Allocator, class... Indices>
-	class basic_undo_multi_index : public basic_multi_index<T, Allocator, Indices...> {
-		using base = basic_multi_index<T, Allocator, Indices...>;
+	class basic_undo_multi_index : public basic_multi_index<detail::extra_node_tag<T, detail::undo_node_extra>, Allocator, Indices...> {
+		using base = basic_multi_index<detail::extra_node_tag<T, detail::undo_node_extra>, Allocator, Indices...>;
 		using index0_type = typename base::index0_type;
 
 		static constexpr int erased_flag = 2; // 0,1,and -1 are used by the tree
@@ -301,7 +307,7 @@ namespace chainbase {
 				if (restored_mtime < undo_info.ctime) {
 					auto iter = &to_old_node(*p)._current->_item;
 					*iter = std::move(*p);
-					auto& node_mtime = to_node(*iter)._mtime;
+					auto& node_mtime = to_node(*iter)._extra.mtime;
 					node_mtime = restored_mtime;
 					if (get_removed_field(*iter) != erased_flag) {
 						// Non-unique items are transient and are guaranteed to be fixed
@@ -417,7 +423,7 @@ namespace chainbase {
 		{
 			if (!_undo_stack.empty()) {
 				// Not in old_values, removed_values, or new_ids
-				to_node(value)._mtime = _monotonic_revision;
+				to_node(value)._extra.mtime = _monotonic_revision;
 			}
 		}
 
@@ -425,7 +431,7 @@ namespace chainbase {
 		{
 			if (!_undo_stack.empty()) {
 				auto& undo_info = _undo_stack.back();
-				if (to_node(obj)._mtime >= undo_info.ctime) {
+				if (to_node(obj)._extra.mtime >= undo_info.ctime) {
 					// Nothing to do
 				}
 				else {
@@ -433,11 +439,11 @@ namespace chainbase {
 					auto p = old_alloc_traits::allocate(_old_values_allocator, 1);
 					auto guard0 = detail::scope_exit { [&] { _old_values_allocator.deallocate(p, 1); } };
 					old_alloc_traits::construct(_old_values_allocator, &*p, obj);
-					p->_mtime = to_node(obj)._mtime;
+					p->_mtime = to_node(obj)._extra.mtime;
 					p->_current = &to_node(obj);
 					guard0.cancel();
 					_old_values.push_front(p->_item);
-					to_node(obj)._mtime = _monotonic_revision;
+					to_node(obj)._extra.mtime = _monotonic_revision;
 					return &p->_item;
 				}
 			}
@@ -489,7 +495,7 @@ namespace chainbase {
 				    auto& item = to_old_node(v)._current->_item;
 				    if (get_removed_field(item) == erased_flag) {
 					    item = std::move(v);
-					    to_node(item)._mtime = to_old_node(v)._mtime;
+					    to_node(item)._extra.mtime = to_old_node(v)._mtime;
 					    return true;
 				    }
 				    return false;

@@ -18,30 +18,29 @@ namespace chainbase {
 	template<class T, class Allocator, class... Indices>
 	class basic_multi_index {
 	protected:
+		using extra_traits = detail::extra_node_traits<T>;
+		using extra_extra_traits = detail::extra_node_traits<typename extra_traits::value_type>;
+
+		static_assert(std::is_same_v<typename extra_extra_traits::extra_type, void>, "Only one derived class can use extra_node_tag");
+
 		struct node
 		    : detail::hook<Indices, Allocator>...
-		    , detail::value_holder<T> {
-			using value_type = T;
+		    , detail::value_holder<typename extra_traits::value_type>
+		    , detail::extra_holder<typename extra_traits::extra_type> {
+
+			using value_type = typename extra_traits::value_type;
 			using allocator_type = Allocator;
 
 			template<class... A>
 			explicit node(A&&... a)
-			    : detail::value_holder<T> { static_cast<A&&>(a)... }
+			    : detail::value_holder<value_type> { static_cast<A&&>(a)... }
 			{}
-
-			const T& item() const
-			{
-				return *this;
-			}
-
-			// FIXME: find a way to allow derived implementations to add extra data to node
-			uint64_t _mtime = 0; // _monotonic_revision when the node was last modified or created.
 		};
 
 	public:
-		using id_type = std::decay_t<decltype(std::declval<T>().id)>;
-		using value_type = T;
+		using value_type = typename extra_traits::value_type;
 		using allocator_type = Allocator;
+		using id_type = std::decay_t<decltype(std::declval<value_type>().id)>;
 
 		static_assert((... && detail::is_valid_index<Indices>), "Only ordered_unique indices are supported");
 

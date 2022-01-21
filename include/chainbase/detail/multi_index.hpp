@@ -22,6 +22,30 @@ namespace chainbase::detail {
 	};
 
 	template<class T>
+	struct extra_holder {
+		T _extra;
+	};
+
+	template<>
+	struct extra_holder<void> {
+	};
+
+	template<class Object, class ExtraType>
+	struct extra_node_tag;
+
+	template<class Object>
+	struct extra_node_traits {
+		using value_type = Object;
+		using extra_type = void;
+	};
+
+	template<class Object, class ExtraType>
+	struct extra_node_traits<extra_node_tag<Object, ExtraType>> {
+		using value_type = Object;
+		using extra_type = ExtraType;
+	};
+
+	template<class T>
 	struct value_holder {
 		template<class... A>
 		value_holder(A&&... a)
