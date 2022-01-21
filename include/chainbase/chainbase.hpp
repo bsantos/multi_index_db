@@ -8,3 +8,4 @@
 #include <chainbase/allocator.hpp>
 #include <chainbase/multi_index.hpp>
 #include <chainbase/environment.hpp>
+#include <chainbase/undo_multi_index.hpp>

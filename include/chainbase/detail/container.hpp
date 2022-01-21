@@ -12,6 +12,9 @@ namespace chainbase {
 
 	template<class T, class A, class... I>
 	class basic_multi_index;
+
+	template<class T, class A, class... I>
+	class basic_undo_multi_index;
 }
 
 namespace chainbase::detail {
@@ -23,6 +26,9 @@ namespace chainbase::detail {
 
 	template<class T, class A, class... I>
 	struct is_container<basic_multi_index<T, A, I...>> : std::true_type {};
+
+	template<class T, class A, class... I>
+	struct is_container<basic_undo_multi_index<T, A, I...>> : std::true_type {};
 
 	template<class T>
 	inline constexpr bool is_container_v = is_container<T>::value;

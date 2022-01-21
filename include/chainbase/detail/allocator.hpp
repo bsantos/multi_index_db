@@ -1,9 +1,12 @@
 #pragma once
 
-#include <chainbase/detail/allocator.hpp>
-#include <chainbase/detail/scope_exit.hpp>
+#include <boost/interprocess/allocators/allocator.hpp>
+#include <boost/interprocess/allocators/node_allocator.hpp>
+#include <boost/interprocess/allocators/private_node_allocator.hpp>
 
 namespace chainbase::detail {
+	namespace bip = boost::interprocess;
+
 	template<class Allocator, class T>
 	using rebind_alloc_t = typename std::allocator_traits<Allocator>::template rebind_alloc<T>;
 
