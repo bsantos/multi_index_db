@@ -75,7 +75,7 @@ namespace chainbase {
 		open_outcome outcome() const { return _outcome; }
 
 		template<class T>
-		auto get() -> std::enable_if_t<detail::is_container_v<T>, T*>
+		auto get() -> std::enable_if_t<is_container_v<T>, T*>
 		{
 			using container_type = detail::container<T>;
 			using container_alloc = typename container_type::allocator_type;
@@ -90,7 +90,7 @@ namespace chainbase {
 		}
 
 		template<class T>
-		auto get() const -> std::enable_if_t<detail::is_container_v<T>, T const*>
+		auto get() const -> std::enable_if_t<is_container_v<T>, T const*>
 		{
 			using container_type = detail::container<T>;
 
