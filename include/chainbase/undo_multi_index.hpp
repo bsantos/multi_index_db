@@ -165,7 +165,7 @@ namespace chainbase {
 			session(basic_undo_multi_index& idx)
 			    : _index { idx }
 			{
-				idx.add_session();
+				idx.start_undo();
 			}
 
 			session(session&& other)
@@ -225,6 +225,16 @@ namespace chainbase {
 			return session { *this };
 		}
 
+		int64_t start_undo()
+		{
+			_undo_stack.emplace_back();
+			_undo_stack.back().old_values_end = _old_values.empty() ? nullptr : &*_old_values.begin();
+			_undo_stack.back().removed_values_end = _removed_values.empty() ? nullptr : &*_removed_values.begin();
+			_undo_stack.back().old_next_id = this->_next_id;
+			_undo_stack.back().ctime = ++_monotonic_revision;
+			return ++_revision;
+		}
+
 		void set_revision(uint64_t revision)
 		{
 			if (_undo_stack.size() != 0)
@@ -247,7 +257,7 @@ namespace chainbase {
 		/**
 		 * Discards all undo history prior to revision
 		 */
-		void commit(int64_t revision) noexcept
+		int64_t commit(int64_t revision) noexcept
 		{
 			revision = std::min(revision, _revision);
 			if (revision == _revision) {
@@ -259,6 +269,8 @@ namespace chainbase {
 				dispose(get_old_values_end(*iter), get_removed_values_end(*iter));
 				_undo_stack.erase(_undo_stack.begin(), iter);
 			}
+
+			return _revision;
 		}
 
 		bool has_undo_session() const
@@ -504,18 +516,6 @@ namespace chainbase {
 			detail::remove_if_after_and_dispose(
 			    _removed_values, _removed_values.before_begin(), get_removed_values_end(_undo_stack.back()),
 			    [old_next_id](value_type& v) { return v.id >= old_next_id; }, [this](pointer p) { this->dispose_node(*p); });
-		}
-
-		// starts a new undo session.
-		// Exception safety: strong
-		int64_t add_session()
-		{
-			_undo_stack.emplace_back();
-			_undo_stack.back().old_values_end = _old_values.empty() ? nullptr : &*_old_values.begin();
-			_undo_stack.back().removed_values_end = _removed_values.empty() ? nullptr : &*_removed_values.begin();
-			_undo_stack.back().old_next_id = this->_next_id;
-			_undo_stack.back().ctime = ++_monotonic_revision;
-			return ++_revision;
 		}
 
 		void dispose_old(old_node& node_ref) noexcept
