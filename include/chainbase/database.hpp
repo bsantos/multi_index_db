@@ -2,6 +2,7 @@
 
 #include <chainbase/allocator.hpp>
 #include <chainbase/detail/database.hpp>
+#include <chainbase/detail/container.hpp>
 
 #include <boost/throw_exception.hpp>
 #include <boost/interprocess/file_mapping.hpp>
@@ -73,6 +74,32 @@ namespace chainbase {
 		open_mode mode() const { return _mode; }
 		open_outcome outcome() const { return _outcome; }
 
+		template<class T>
+		auto get() -> std::enable_if_t<detail::is_container_v<T>, T*>
+		{
+			using container_type = detail::container<T>;
+			using container_alloc = typename container_type::allocator_type;
+
+			constexpr auto type_name = container_type::value_type::type_name;
+
+			container_type* ptr = _segment_manager->find<container_type>(type_name.c_str()).first;
+			if (!ptr)
+				ptr = _segment_manager->construct<container_type>(type_name.c_str())(container_alloc(_segment_manager));
+
+			return ptr->get();
+		}
+
+		template<class T>
+		auto get() const -> std::enable_if_t<detail::is_container_v<T>, T const*>
+		{
+			using container_type = detail::container<T>;
+
+			constexpr auto type_name = container_type::value_type::type_name;
+
+			container_type* ptr = _segment_manager->find<container_type>(type_name.c_str()).first;
+			return ptr ? ptr->get() : nullptr;
+		}
+
 		struct session {
 		public:
 			session(session&& s)
@@ -126,41 +153,42 @@ namespace chainbase {
 			return _index_list[0]->revision();
 		}
 
-		void undo();
-		void squash();
-		void commit(int64_t revision);
-		void undo_all();
-
 		void set_revision(uint64_t revision)
 		{
 			for (auto i : _index_list)
 				i->set_revision(revision);
 		}
 
+		void undo();
+		void squash();
+		void commit(int64_t revision);
+		void undo_all();
+
 		template<typename MultiIndexType>
 		void add_index()
 		{
-			using index_type = detail::get_multi_index<MultiIndexType>;
-			using index_alloc = typename index_type::allocator_type;
+			using container_type = detail::container<MultiIndexType>;
+			using index_type = MultiIndexType;
+			using index_alloc = typename container_type::allocator_type;
 
-			constexpr auto type_id = index_type::value_type::type_id;
-			constexpr auto type_name = index_type::value_type::type_name;
+			constexpr auto type_id = container_type::value_type::type_id;
+			constexpr auto type_name = container_type::value_type::type_name;
 
 			if (!(_index_map.size() <= type_id || _index_map[type_id] == nullptr)) {
 				BOOST_THROW_EXCEPTION(std::logic_error(type_name.str() + " is already in use"));
 			}
 
-			index_type* idx_ptr = _segment_manager->find<index_type>(type_name.c_str()).first;
+			container_type* c_ptr = _segment_manager->find<container_type>(type_name.c_str()).first;
 			bool first_time_adding = false;
-			if (!idx_ptr) {
+			if (!c_ptr) {
 				if (is_read_only()) {
 					BOOST_THROW_EXCEPTION(std::runtime_error("unable to find index for " + type_name.str() + " in read only database"));
 				}
 				first_time_adding = true;
-				idx_ptr = _segment_manager->construct<index_type>(type_name.c_str())(index_alloc(_segment_manager));
+				c_ptr = _segment_manager->construct<container_type>(type_name.c_str())(index_alloc(_segment_manager));
 			}
 
-			idx_ptr->validate();
+			auto idx_ptr = c_ptr->get();
 
 			// Ensure the undo stack of added index is consistent with the other indices in the database
 			if (_index_list.size() > 0) {
@@ -197,6 +225,36 @@ namespace chainbase {
 			_index_map[type_id] = std::move(new_index);
 		}
 
+		template<class MultiIndexType>
+		MultiIndexType const& get_index() const
+		{
+			typedef MultiIndexType index_type;
+			typedef index_type* index_type_ptr;
+			assert(_index_map.size() > index_type::value_type::type_id);
+			assert(_index_map[index_type::value_type::type_id]);
+			return *index_type_ptr(_index_map[index_type::value_type::type_id]->get());
+		}
+
+		template<class MultiIndexType, class ByIndex>
+		auto get_index() const -> decltype(std::declval<MultiIndexType const>().indices().template get<ByIndex>())
+		{
+			typedef MultiIndexType index_type;
+			typedef index_type* index_type_ptr;
+			assert(_index_map.size() > index_type::value_type::type_id);
+			assert(_index_map[index_type::value_type::type_id]);
+			return index_type_ptr(_index_map[index_type::value_type::type_id]->get())->indices().template get<ByIndex>();
+		}
+
+		template<class MultiIndexType>
+		MultiIndexType& get_mutable_index()
+		{
+			typedef MultiIndexType index_type;
+			typedef index_type* index_type_ptr;
+			assert(_index_map.size() > index_type::value_type::type_id);
+			assert(_index_map[index_type::value_type::type_id]);
+			return *index_type_ptr(_index_map[index_type::value_type::type_id]->get());
+		}
+
 		segment_manager* get_segment_manager()
 		{
 			return _segment_manager;
@@ -220,36 +278,6 @@ namespace chainbase {
 		size_t get_segment_size() const
 		{
 			return _segment_manager->get_size();
-		}
-
-		template<class MultiIndexType>
-		detail::get_multi_index<MultiIndexType> const& get_index() const
-		{
-			typedef detail::get_multi_index<MultiIndexType> index_type;
-			typedef index_type* index_type_ptr;
-			assert(_index_map.size() > index_type::value_type::type_id);
-			assert(_index_map[index_type::value_type::type_id]);
-			return *index_type_ptr(_index_map[index_type::value_type::type_id]->get());
-		}
-
-		template<class MultiIndexType, class ByIndex>
-		auto get_index() const -> decltype(std::declval<detail::get_multi_index<MultiIndexType> const>().indices().template get<ByIndex>())
-		{
-			typedef detail::get_multi_index<MultiIndexType> index_type;
-			typedef index_type* index_type_ptr;
-			assert(_index_map.size() > index_type::value_type::type_id);
-			assert(_index_map[index_type::value_type::type_id]);
-			return index_type_ptr(_index_map[index_type::value_type::type_id]->get())->indices().template get<ByIndex>();
-		}
-
-		template<class MultiIndexType>
-		detail::get_multi_index<MultiIndexType>& get_mutable_index()
-		{
-			typedef detail::get_multi_index<MultiIndexType> index_type;
-			typedef index_type* index_type_ptr;
-			assert(_index_map.size() > index_type::value_type::type_id);
-			assert(_index_map[index_type::value_type::type_id]);
-			return *index_type_ptr(_index_map[index_type::value_type::type_id]->get());
 		}
 
 	private:

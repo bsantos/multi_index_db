@@ -2,23 +2,7 @@
 
 #include <memory>
 
-namespace chainbase {
-	template<class T, class A, class... I>
-	class basic_multi_index;
-}
-
 namespace chainbase::detail {
-	template<class MultiIndexType>
-	struct get_multi_index_impl;
-
-	template<class T, class A, class... I>
-	struct get_multi_index_impl<basic_multi_index<T, A, I...>> {
-		using type = basic_multi_index<T, A, I...>;
-	};
-
-	template<class MultiIndexType>
-	using get_multi_index = typename get_multi_index_impl<MultiIndexType>::type;
-
 	class abstract_undo_session {
 	public:
 		virtual ~abstract_undo_session() {};

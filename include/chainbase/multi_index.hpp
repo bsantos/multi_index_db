@@ -63,12 +63,6 @@ namespace chainbase {
 			std::get<0>(_indices).clear_and_dispose([&](pointer p) { dispose_node(*p); });
 		}
 
-		void validate() const
-		{
-			if (sizeof(node) != _size_of_value_type || sizeof(*this) != _size_of_this)
-				BOOST_THROW_EXCEPTION(std::runtime_error("content of memory does not match data expected by executable"));
-		}
-
 		template<class Node, class OrderedIndex>
 		struct set_index : private detail::set_base<Node, OrderedIndex> {
 			using base_type = detail::set_base<Node, OrderedIndex>;
@@ -880,8 +874,6 @@ namespace chainbase {
 		id_type _next_id {};
 		int64_t _revision = 0;
 		uint64_t _monotonic_revision = 0;
-		uint32_t _size_of_value_type = sizeof(node);
-		uint32_t _size_of_this = sizeof(basic_multi_index);
 	};
 
 	template<class Object, class... Indices>
