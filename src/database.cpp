@@ -6,9 +6,6 @@
 #include <string_view>
 
 namespace chainbase {
-	namespace ba = boost::archive;
-	namespace bs = boost::serialization;
-
 	namespace {
 		constexpr size_t db_min_free = 2046;
 		constexpr size_t db_min_size = 4096;
@@ -145,9 +142,6 @@ namespace chainbase {
 
 	database::~database() noexcept
 	{
-		_index_list.clear();
-		_index_map.clear();
-
 		if (_segment_manager && _mode == open_mode::read_write)
 			flush();
 	}
@@ -160,14 +154,11 @@ namespace chainbase {
 		, _file_lock { std::move(_file_lock) }
 		, _file_mapping { std::move(_file_mapping) }
 		, _file_mapped_region { std::move(_file_mapped_region) }
-		, _index_list { std::move(_index_list) }
-		, _index_map { std::move(_index_map) }
 	{}
 
 	database& database::operator=(database&& other) noexcept
 	{
-		if (this == &other)
-			return *this;
+		assert(std::addressof(other) != this);
 
 		if (_segment_manager && _mode == open_mode::read_write)
 			flush();
@@ -179,51 +170,11 @@ namespace chainbase {
 		_file_lock = std::move(_file_lock);
 		_file_mapping = std::move(_file_mapping);
 		_file_mapped_region = std::move(_file_mapped_region);
-		_index_list = std::move(_index_list);
-		_index_map = std::move(_index_map);
+
+		if (_segment_manager && _mode == open_mode::read_write)
+			dirty();
 
 		return *this;
-	}
-
-	void database::undo()
-	{
-		for (auto& item : _index_list) {
-			item->undo();
-		}
-	}
-
-	void database::squash()
-	{
-		for (auto& item : _index_list) {
-			item->squash();
-		}
-	}
-
-	void database::commit(int64_t revision)
-	{
-		for (auto& item : _index_list) {
-			item->commit(revision);
-		}
-	}
-
-	void database::undo_all()
-	{
-		for (auto& item : _index_list) {
-			item->undo_all();
-		}
-	}
-
-	database::session database::start_undo_session()
-	{
-		std::vector<std::unique_ptr<detail::abstract_undo_session>> _sub_sessions;
-
-		_sub_sessions.reserve(_index_list.size());
-
-		for (auto& item : _index_list) {
-			_sub_sessions.push_back(item->start_undo_session());
-		}
-
-		return session { std::move(_sub_sessions) };
 	}
 
 	void database::flush()
