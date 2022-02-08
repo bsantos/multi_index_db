@@ -239,7 +239,32 @@ namespace chainbase {
       static_assert((... && is_valid_index<Indices>), "Only ordered_unique indices are supported");
 
       undo_index() = default;
-      explicit undo_index(const Allocator& a) : _undo_stack{a}, _allocator{a}, _old_values_allocator{a} {}
+      explicit undo_index(Allocator const& a)
+         : _undo_stack { a }
+         , _allocator { a }
+         , _old_values_allocator { a }
+      {}
+      explicit undo_index(undo_index const& other, Allocator const& a)
+         : _undo_stack { a }
+         , _allocator { a }
+         , _old_values_allocator { a }
+         , _next_id { other._next_id }
+         , _revision { other._revision }
+         , _monotonic_revision { other._monotonic_revision }
+      {
+         auto& idx0 = std::get<0>(_indices);
+         auto guard = scope_exit { [&]{ idx0.clear_and_dispose([&](pointer p) { dispose_node(*p); }); } };
+
+         for (auto const& node : std::get<0>(other._indices)) {
+            auto p = alloc_traits::allocate(_allocator, 1);
+
+            alloc_traits::construct(_allocator, &*p, [&](value_type& v) { v = node; }, propagate_allocator(_allocator));
+            idx0.push_back(p->_item);
+            insert_impl_nc<1>(p->_item);
+         }
+
+         guard.cancel();
+      }
       ~undo_index() {
          dispose_undo();
          clear_impl<1>();
@@ -697,6 +722,14 @@ namespace chainbase {
          _undo_stack.back().old_next_id = _next_id;
          _undo_stack.back().ctime = ++_monotonic_revision;
          return ++_revision;
+      }
+
+      template<int N>
+      void insert_impl_nc(value_type& p) {
+         if constexpr (N < sizeof...(Indices)) {
+            std::get<N>(_indices).insert_unique(p);
+            insert_impl_nc<N+1>(p);
+         }
       }
 
       template<int N = 0>
