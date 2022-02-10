@@ -12,23 +12,20 @@ namespace chainbase {
 	template<class T, class A, class... I>
 	class basic_undo_multi_index;
 
+	template<class C>
+	class journaled;
+
 	template<class T>
-	struct is_singleton : std::false_type {};
+	struct is_container : std::false_type {};
 
 	template<class T, class A>
-	struct is_singleton<singleton<T, A>> : std::true_type {};
-
-	template<class T>
-	struct is_multi_index : std::false_type {};
+	struct is_container<singleton<T, A>> : std::true_type {};
 
 	template<class T, class A, class... I>
-	struct is_multi_index<basic_multi_index<T, A, I...>> : std::true_type {};
-
-	template<class T>
-	struct is_undo_multi_index : std::false_type {};
+	struct is_container<basic_multi_index<T, A, I...>> : std::true_type {};
 
 	template<class T, class A, class... I>
-	struct is_undo_multi_index<basic_undo_multi_index<T, A, I...>> : std::true_type {};
+	struct is_container<basic_undo_multi_index<T, A, I...>> : std::true_type {};
 
 	template<class T>
 	struct is_journaled : std::false_type {};
@@ -40,16 +37,7 @@ namespace chainbase {
 	struct is_journaled<journaled<basic_undo_multi_index<T, A, I...>>> : std::true_type {};
 
 	template<class T>
-	inline constexpr bool is_singleton_v = is_singleton<T>::value;
-
-	template<class T>
-	inline constexpr bool is_multi_index_v = is_multi_index<T>::value;
-
-	template<class T>
-	inline constexpr bool is_undo_multi_index_v = is_undo_multi_index<T>::value;
-
-	template<class T>
-	inline constexpr bool is_container_v = is_singleton_v<T> || is_multi_index_v<T> || is_undo_multi_index_v<T>;
+	inline constexpr bool is_container_v = is_container<T>::value;
 
 	template<class T>
 	inline constexpr bool is_journaled_v = is_journaled<T>::value;
