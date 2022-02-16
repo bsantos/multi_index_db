@@ -10,9 +10,9 @@ namespace chainbase {
 	 */
 	template<size_t N>
 	struct name {
-		constexpr name(const char (&str)[N]) noexcept
+		constexpr name(const char (&str)[N + 1]) noexcept
 		{
-			std::copy_n(str, N, chars);
+			std::copy_n(str, N + 1, chars);
 		}
 
 		constexpr char const* c_str() const noexcept
@@ -32,8 +32,11 @@ namespace chainbase {
 
 		constexpr char const* begin() const noexcept { return chars; }
 		constexpr char const* end() const noexcept { return chars + size(); }
-		constexpr size_t size() const noexcept { return N - 1; }
+		constexpr size_t size() const noexcept { return N; }
 
-		char chars[N];
+		char chars[N + 1];
 	};
+
+	template<size_t N>
+	name(const char (&str)[N]) -> name<N - 1>;
 }

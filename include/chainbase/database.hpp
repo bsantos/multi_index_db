@@ -75,26 +75,46 @@ namespace chainbase {
 		open_outcome outcome() const { return _outcome; }
 
 		template<class T>
-		auto get() -> std::enable_if_t<is_container_v<T>, T*>
+		auto get(std::string_view suffix = {}) -> std::enable_if_t<is_container_v<T>, T*>
 		{
 			using container_type = detail::container<T>;
 			using container_alloc = typename container_type::allocator_type;
 
 			constexpr auto type_name = container_type::value_type::type_name;
+			auto c_name = type_name.c_str();
+			std::string name;
 
-			container_type* ptr = _segment_manager->find<container_type>(type_name.c_str()).first;
+			if (!suffix.empty()) {
+				name.reserve(type_name.view().size() + 1 + suffix.size());
+				name += type_name.view();
+				name += '.';
+				name += suffix;
+				c_name = name.c_str();
+			}
+
+			container_type* ptr = _segment_manager->find<container_type>(c_name).first;
 			if (!ptr)
-				ptr = _segment_manager->construct<container_type>(type_name.c_str())(container_alloc(_segment_manager));
+				ptr = _segment_manager->construct<container_type>(c_name)(container_alloc(_segment_manager));
 
 			return ptr->get();
 		}
 
 		template<class T>
-		auto get() const -> std::enable_if_t<is_container_v<T>, T const*>
+		auto get(std::string_view suffix = {}) const -> std::enable_if_t<is_container_v<T>, T const*>
 		{
 			using container_type = detail::container<T>;
 
 			constexpr auto type_name = container_type::value_type::type_name;
+			auto c_name = type_name.c_str();
+			std::string name;
+
+			if (!suffix.empty()) {
+				name.reserve(type_name.view().size() + 1 + suffix.size());
+				name += type_name.view();
+				name += '.';
+				name += suffix;
+				c_name = name.c_str();
+			}
 
 			container_type* ptr = _segment_manager->find<container_type>(type_name.c_str()).first;
 			return ptr ? ptr->get() : nullptr;

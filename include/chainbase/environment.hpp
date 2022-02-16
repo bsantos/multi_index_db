@@ -49,7 +49,7 @@ namespace chainbase {
 #if defined(__x86_64__)
 		    ARCH_X86_64;
 #elif defined(__aarch64__)
-		    ARCH_ARM64;
+		    ARCH_ARM;
 #else
 #	error "unknown architecture"
 #endif
