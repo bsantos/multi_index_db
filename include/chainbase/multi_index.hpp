@@ -141,7 +141,8 @@ namespace chainbase {
 			if (!insert_impl<1>(p->_item))
 				BOOST_THROW_EXCEPTION(std::logic_error { "could not insert object, most likely a uniqueness constraint was violated" });
 			std::get<0>(_indices).push_back(p->_item); // cannot fail and we know that it will definitely insert at the end.
-			++_next_id;
+			assert(p->_item.id >= _next_id);
+			_next_id = p->_item.id + 1;
 			guard1.cancel();
 			guard0.cancel();
 			return p->_item;
