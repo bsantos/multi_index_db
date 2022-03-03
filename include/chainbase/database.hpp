@@ -1,7 +1,7 @@
 #pragma once
 
+#include <chainbase/traits.hpp>
 #include <chainbase/allocator.hpp>
-#include <chainbase/container.hpp>
 #include <chainbase/detail/container.hpp>
 
 #include <boost/throw_exception.hpp>
