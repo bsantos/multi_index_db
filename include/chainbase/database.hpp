@@ -120,6 +120,38 @@ namespace chainbase {
 			return ptr ? ptr->get() : nullptr;
 		}
 
+		template<class T>
+		auto get(std::string_view suffix = {}) -> std::enable_if_t<is_journaled_v<T>, T>
+		{
+			using journaled_type = T;
+			using container_type = detail::container<typename T::container_type>;
+			using container_alloc = typename container_type::allocator_type;
+
+			constexpr auto type_name = container_type::value_type::type_name;
+			auto c_name = type_name.c_str();
+			std::string name;
+
+			if (!suffix.empty()) {
+				name.reserve(type_name.view().size() + 1 + suffix.size());
+				name += type_name.view();
+				name += '.';
+				name += suffix;
+				c_name = name.c_str();
+			}
+
+			container_type* ptr = _segment_manager->find<container_type>(c_name).first;
+			if (!ptr)
+				ptr = _segment_manager->construct<container_type>(c_name)(container_alloc(_segment_manager));
+
+			auto jfpath = _file_path;
+
+			jfpath += '.';
+			jfpath += c_name;
+			jfpath += ".journal";
+
+			return journaled_type { ptr->get(), jfpath, _outcome };
+		}
+
 		segment_manager* get_segment_manager()
 		{
 			return _segment_manager;

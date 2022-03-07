@@ -6,6 +6,7 @@
 #include <chainbase/object.hpp>
 #include <chainbase/database.hpp>
 #include <chainbase/allocator.hpp>
+#include <chainbase/journaled.hpp>
 #include <chainbase/singleton.hpp>
 #include <chainbase/multi_index.hpp>
 #include <chainbase/environment.hpp>
