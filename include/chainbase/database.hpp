@@ -58,6 +58,7 @@ namespace chainbase {
 	class database {
 	public:
 		database(fs::path const& fpath, open_mode mode = open_mode::read_only, uint64_t db_file_size = 0, dirty_action action = dirty_action::fail);
+		database(fs::path const& fpath, fs::path const& journal_path, open_mode mode = open_mode::read_only, uint64_t db_file_size = 0, dirty_action action = dirty_action::fail);
 		~database() noexcept;
 
 		database(database const&) = delete;
@@ -143,7 +144,7 @@ namespace chainbase {
 			if (!ptr)
 				ptr = _segment_manager->construct<container_type>(c_name)(container_alloc(_segment_manager));
 
-			auto jfpath = _file_path;
+			auto jfpath = _journal_path;
 
 			jfpath += '.';
 			jfpath += c_name;
@@ -187,7 +188,8 @@ namespace chainbase {
 
 		open_mode _mode;
 		open_outcome _outcome;
-		fs::path _file_path;
+		fs::path _db_path;
+		fs::path _journal_path;
 		bip::file_lock _file_lock;
 		bip::file_mapping _file_mapping;
 		bip::mapped_region _file_mapped_region;

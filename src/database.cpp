@@ -62,7 +62,12 @@ namespace chainbase {
 	}
 
 	database::database(fs::path const& fpath, open_mode mode, uint64_t db_file_size, dirty_action action)
-		: _file_path { fpath }
+		: database { fpath, fpath, mode, db_file_size, action }
+	{}
+
+	database::database(fs::path const& fpath, fs::path const& journal_path, open_mode mode, uint64_t db_file_size, dirty_action action)
+		: _db_path { fpath }
+		, _journal_path { journal_path }
 		, _mode { mode }
 	{
 		bool const writable = mode == open_mode::read_write;
@@ -150,7 +155,8 @@ namespace chainbase {
 	    : _segment_manager { std::exchange(other._segment_manager, nullptr) }
 		, _mode { other._mode }
 		, _outcome { other._outcome }
-		, _file_path { std::move(_file_path) }
+		, _db_path { std::move(_db_path) }
+		, _journal_path { std::move(_journal_path) }
 		, _file_lock { std::move(_file_lock) }
 		, _file_mapping { std::move(_file_mapping) }
 		, _file_mapped_region { std::move(_file_mapped_region) }
@@ -166,7 +172,8 @@ namespace chainbase {
 		_segment_manager = std::exchange(other._segment_manager, nullptr);
 		_mode = other._mode;
 		_outcome = other._outcome;
-		_file_path = std::move(_file_path);
+		_db_path = std::move(_db_path);
+		_journal_path = std::move(_journal_path);
 		_file_lock = std::move(_file_lock);
 		_file_mapping = std::move(_file_mapping);
 		_file_mapped_region = std::move(_file_mapped_region);
