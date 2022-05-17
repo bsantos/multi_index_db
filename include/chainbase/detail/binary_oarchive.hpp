@@ -64,6 +64,13 @@ namespace chainbase::detail {
 				save(item);
 		}
 
+		template<class T, size_t N>
+		void save(std::array<T, N> const& value)
+		{
+			for (auto&& item : value)
+				save(item);
+		}
+
 		void save(std::string const& value)
 		{
 			assert(static_cast<uint32_t>(value.size()) == value.size());

@@ -66,6 +66,13 @@ namespace chainbase::detail {
 				load(item);
 		}
 
+		template<class T, size_t N>
+		void load(std::array<T, N>& value)
+		{
+			for (auto& item : value)
+				load(item);
+		}
+
 		void load(std::string& value)
 		{
 			auto size = serialize_unsigned_integral<uint32_t>();
