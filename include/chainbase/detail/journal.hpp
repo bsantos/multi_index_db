@@ -30,6 +30,7 @@ namespace chainbase::detail {
 		uint32_t crc;
 		uint32_t size;
 		uint32_t type;
+		uint32_t version;
 	};
 
 	class journal {
@@ -66,7 +67,7 @@ namespace chainbase::detail {
 			auto pos = _file.tellg();
 
 			while (read_header(log, pos, input)) {
-				if (!apply_recover(c, from_underlying<journal_op>(log.type), input))
+				if (!apply_recover(c, from_underlying<journal_op>(log.type), input, log.version))
 					input.skip(log.size);
 			}
 
@@ -77,7 +78,7 @@ namespace chainbase::detail {
 		template<class Object>
 		void insert(Object const& obj)
 		{
-			journal_log entry { 0, 0, big_endian_order(to_underlying(journal_op::insert)) };
+			journal_log entry { 0, 0, big_endian_order(to_underlying(journal_op::insert)), big_endian_order(static_cast<uint32_t>(bs::version<Object>::value)) };
 			auto pos = write_header(entry);
 			bs::serialize_adl(_output, const_cast<Object&>(obj), bs::version<Object>::value);
 			update_header(entry, pos);
@@ -86,7 +87,7 @@ namespace chainbase::detail {
 		template<class Object>
 		void modify(Object const& obj)
 		{
-			journal_log entry { 0, 0, big_endian_order(to_underlying(journal_op::modify)) };
+			journal_log entry { 0, 0, big_endian_order(to_underlying(journal_op::modify)), big_endian_order(static_cast<uint32_t>(bs::version<Object>::value)) };
 			auto pos = write_header(entry);
 			_output << obj.id;
 			bs::serialize_adl(_output, const_cast<Object&>(obj), bs::version<Object>::value);
@@ -96,7 +97,7 @@ namespace chainbase::detail {
 		template<class Object>
 		void remove(Object const& obj)
 		{
-			journal_log entry { 0, 0, big_endian_order(to_underlying(journal_op::remove)) };
+			journal_log entry { 0, 0, big_endian_order(to_underlying(journal_op::remove)), big_endian_order(static_cast<uint32_t>(bs::version<Object>::value)) };
 			auto pos = write_header(entry);
 			_output << obj.id;
 			update_header(entry, pos);
@@ -110,14 +111,14 @@ namespace chainbase::detail {
 
 	private:
 		template<class Container>
-		bool apply_recover(Container& c, journal_op op, binary_iarchive& input)
+		bool apply_recover(Container& c, journal_op op, binary_iarchive& input, uint32_t version)
 		{
 			using value_type = typename Container::value_type;
 			using id_type = typename value_type::id_type;
 
 			switch (op) {
 			case journal_op::insert: {
-				c.emplace([&input](value_type& obj) { bs::serialize_adl(input, obj, bs::version<value_type>::value); });
+				c.emplace([&](value_type& obj) { bs::serialize_adl(input, obj, version); });
 				break;
 			}
 
@@ -128,7 +129,7 @@ namespace chainbase::detail {
 				input >> id;
 
 				if (auto it = idx0.find(id); it != idx0.end())
-					c.modify(*it, [&input](value_type& obj) { bs::serialize_adl(input, obj, bs::version<value_type>::value); });
+					c.modify(*it, [&](value_type& obj) { bs::serialize_adl(input, obj, version); });
 				else
 					BOOST_THROW_EXCEPTION(std::runtime_error("journal recover modify of non existing id " + std::to_string(id)));
 				break;

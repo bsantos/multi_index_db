@@ -86,6 +86,7 @@ namespace chainbase::detail {
 		log.crc = big_endian_order(log.crc);
 		log.size = big_endian_order(log.size);
 		log.type = big_endian_order(log.type);
+		log.version = big_endian_order(log.version);
 
 		pos = _file.tellg();
 		return true;

@@ -104,8 +104,6 @@ namespace chainbase::detail {
 			return *this;
 		}
 
-		bs::library_version_type get_library_version() const { return {}; }
-
 		[[nodiscard]] uint32_t checksum()
 		{
 			auto crc = _crc.checksum();
