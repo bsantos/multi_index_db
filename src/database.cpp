@@ -76,6 +76,9 @@ namespace chainbase {
 		if (!writable && !file_exists)
 			throw_error(fpath, errc::not_found, "file not found");
 
+		if (auto dir = journal_path.parent_path(); !dir.empty())
+			fs::create_directories(dir);
+
 		if (file_exists) {
 			_outcome = open_outcome::good;
 
