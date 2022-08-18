@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chainbase/enums.hpp>
 #include <chainbase/traits.hpp>
 #include <chainbase/allocator.hpp>
 #include <chainbase/detail/container.hpp>
@@ -17,40 +18,6 @@
 namespace chainbase {
 	namespace bip = boost::interprocess;
 	namespace fs = std::filesystem;
-
-	/**
-	 *  Database open mode
-	 */
-	enum class open_mode {
-		read_only,
-		read_write
-	};
-
-	/**
-	 *  Database open action to be applied if dirty flag is set
-	 *
-	 *  What action should be applied on open if dirty flag is set.
-	 *   - fail:  fails with an error
-	 *   - reset:
-	 *   - allow: does nothing
-	 */
-	enum class dirty_action {
-		fail,  /// fail with an error/exception
-		allow, /// do nothing
-		reset, /// reset the database to a clean state over the existing one
-	};
-
-	/**
-	 *  Database open outcome
-	 *
-	 *  The state of database after opening
-	 */
-	enum class open_outcome {
-		good,      /// database file was opened with no issues
-		created,   /// a new database file was created
-		corrupted, /// database file dirty flag was set, data might be corrupted, proceed at your own risk
-		reset,     /// database file dirty flag was set, data has been reset to a clean state
-	};
 
 	/**
 	 *  Database for multi_index containers
@@ -150,7 +117,7 @@ namespace chainbase {
 			jfpath += c_name;
 			jfpath += ".journal";
 
-			return journaled_type { ptr->get(), jfpath, _outcome };
+			return journaled_type { ptr->get(), jfpath, _mode, _outcome };
 		}
 
 		segment_manager* get_segment_manager()

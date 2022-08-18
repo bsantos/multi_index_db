@@ -29,10 +29,11 @@ namespace chainbase {
 
 	public:
 		journaled() = default;
-		explicit journaled(container_type* container, fs::path const& path, open_outcome outcome)
+		explicit journaled(container_type* container, fs::path const& path, open_mode mode, open_outcome outcome)
 		    : _container { container }
 		{
-			_journal.open(path, outcome == open_outcome::reset || outcome == open_outcome::created, container());
+			if (mode == open_mode::read_write)
+				_journal.open(path, outcome == open_outcome::reset || outcome == open_outcome::created, container());
 		}
 
 		journaled(journaled&& other)
@@ -158,10 +159,11 @@ namespace chainbase {
 
 	public:
 		journaled() = default;
-		explicit journaled(container_type* c, fs::path const& path, open_outcome outcome)
+		explicit journaled(container_type* c, fs::path const& path, open_mode mode, open_outcome outcome)
 		    : _container { c }
 		{
-			_journal.open(path, outcome == open_outcome::reset || outcome == open_outcome::created, container());
+			if (mode == open_mode::read_write)
+				_journal.open(path, outcome == open_outcome::reset || outcome == open_outcome::created, container());
 		}
 
 		journaled(journaled&& other)

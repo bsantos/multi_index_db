@@ -78,6 +78,9 @@ namespace chainbase::detail {
 		template<class Object>
 		void insert(Object const& obj)
 		{
+			if (!_file.is_open())
+				return;
+
 			journal_log entry { 0, 0, big_endian_order(to_underlying(journal_op::insert)), big_endian_order(static_cast<uint32_t>(bs::version<Object>::value)) };
 			auto pos = write_header(entry);
 			bs::serialize_adl(_output, const_cast<Object&>(obj), bs::version<Object>::value);
@@ -87,6 +90,9 @@ namespace chainbase::detail {
 		template<class Object>
 		void modify(Object const& obj)
 		{
+			if (!_file.is_open())
+				return;
+
 			journal_log entry { 0, 0, big_endian_order(to_underlying(journal_op::modify)), big_endian_order(static_cast<uint32_t>(bs::version<Object>::value)) };
 			auto pos = write_header(entry);
 			_output << obj.id;
@@ -97,17 +103,54 @@ namespace chainbase::detail {
 		template<class Object>
 		void remove(Object const& obj)
 		{
+			if (!_file.is_open())
+				return;
+
 			journal_log entry { 0, 0, big_endian_order(to_underlying(journal_op::remove)), big_endian_order(static_cast<uint32_t>(bs::version<Object>::value)) };
 			auto pos = write_header(entry);
 			_output << obj.id;
 			update_header(entry, pos);
 		}
 
-		void start_undo(int64_t revision) { undo_entry(revision, journal_op::start_undo); }
-		void commit(int64_t revision) { undo_entry(revision, journal_op::commit); }
-		void undo(int64_t revision) { undo_entry(revision, journal_op::undo); }
-		void undo_all(int64_t revision) { undo_entry(revision, journal_op::undo_all); }
-		void set_revision(int64_t revision) { undo_entry(revision, journal_op::revision); }
+		void start_undo(int64_t revision)
+		{
+			if (!_file.is_open())
+				return;
+
+			undo_entry(revision, journal_op::start_undo);
+		}
+
+		void commit(int64_t revision)
+		{
+			if (!_file.is_open())
+				return;
+
+			undo_entry(revision, journal_op::commit);
+		}
+
+		void undo(int64_t revision)
+		{
+			if (!_file.is_open())
+				return;
+
+			undo_entry(revision, journal_op::undo);
+		}
+
+		void undo_all(int64_t revision)
+		{
+			if (!_file.is_open())
+				return;
+
+			undo_entry(revision, journal_op::undo_all);
+		}
+
+		void set_revision(int64_t revision)
+		{
+			if (!_file.is_open())
+				return;
+
+			undo_entry(revision, journal_op::revision);
+		}
 
 	private:
 		template<class Container>

@@ -70,7 +70,7 @@ namespace chainbase {
 		, _journal_path { journal_path }
 		, _mode { mode }
 	{
-		bool const writable = mode == open_mode::read_write;
+		bool const writable = !is_read_only();
 		bool const file_exists = fs::exists(fpath);
 
 		if (!writable && !file_exists)
@@ -150,7 +150,7 @@ namespace chainbase {
 
 	database::~database() noexcept
 	{
-		if (_segment_manager && _mode == open_mode::read_write)
+		if (_segment_manager && !is_read_only())
 			flush();
 	}
 
@@ -169,7 +169,7 @@ namespace chainbase {
 	{
 		assert(std::addressof(other) != this);
 
-		if (_segment_manager && _mode == open_mode::read_write)
+		if (_segment_manager && !is_read_only())
 			flush();
 
 		_segment_manager = std::exchange(other._segment_manager, nullptr);
@@ -181,7 +181,7 @@ namespace chainbase {
 		_file_mapping = std::move(_file_mapping);
 		_file_mapped_region = std::move(_file_mapped_region);
 
-		if (_segment_manager && _mode == open_mode::read_write)
+		if (_segment_manager && !is_read_only())
 			dirty();
 
 		return *this;
